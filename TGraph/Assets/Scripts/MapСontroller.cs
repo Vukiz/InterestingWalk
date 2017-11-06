@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -10,33 +11,38 @@ namespace Assets.Scripts
 {
   public class MapСontroller : MonoBehaviour
   {
-    private List<GameObject> map;
-    private const int Size = 10;
-    private GameObject vertexPrefab;
-    private GameObject edgePrefab;
     public Vector2 StartPosition;
-    private List<EdgeController> edges;
-    private List<VertexController> vertices;
-    public int TimeRestriction;
-    public float SpawnRate;
     public volatile List<VertexController> BestPath;
+    public bool paralleling = true;
+    public float SpawnRate;
+    public int TimeRestriction;
     public int BestInterest = 0;
     public int MaxInterest = 0;
-    private List<Thread> threads;
+
     private int iterations = 0;
-    public bool paralleling = true;
     private bool updated = false;
+    private const int Size = 10;
+
+    private GameObject vertexPrefab;
+    private GameObject edgePrefab;
+
+    private List<GameObject> map;
+    private List<EdgeController> edges;
+    private List<VertexController> vertices;
+    private List<Thread> threads;
 
     private Button FindBtn;
     private Button RandomizeBtn;
 
     private readonly Button.ButtonClickedEvent findButtonClickedEvent = new Button.ButtonClickedEvent();
     private readonly Button.ButtonClickedEvent randomizeButtonClickedEvent = new Button.ButtonClickedEvent();
+
     // Use this for initialization
     private void Start()
     {
       Init();
       FindBtn = GameObject.Find("FindBtn").GetComponent<Button>();
+      FindBtn.interactable = false; 
       RandomizeBtn = GameObject.Find("RandomizeBtn").GetComponent<Button>();
       findButtonClickedEvent.AddListener(OnFindBtnClick);
       randomizeButtonClickedEvent.AddListener(OnRandomizeButtonClick);
@@ -66,6 +72,7 @@ namespace Assets.Scripts
 
     private void RandomizeGraph()
     {
+      ClearMap();
       RandomizeVertices();
       RandomizeEdges();
     }
@@ -73,9 +80,11 @@ namespace Assets.Scripts
     public void OnRandomizeButtonClick()
     {
       RandomizeGraph();
+      FindBtn.interactable = true;
     }
     public void OnFindBtnClick()
     {
+      FindBtn.interactable = false;
       FordBellman();
       foreach (var v in vertices)
       {
@@ -88,15 +97,76 @@ namespace Assets.Scripts
     }
     private void Init()
     {
-      threads = new List<Thread>();
-      edges = new List<EdgeController>();
-      vertices = new List<VertexController>();
-      BestPath = new List<VertexController>();
+      ClearMap();
       edgePrefab = Resources.Load<GameObject>("Prefabs/Edge");
       vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
     }
+
+    private void ClearThreads()
+    {
+      if (threads != null)
+      {
+        foreach (var thread in threads)
+        {
+          thread.Abort();
+        }
+      }
+      threads = new List<Thread>();
+      Debug.Log("Cleared all threads");
+      StartCoroutine(ClearConsole());
+    }
+
+    private IEnumerator ClearConsole()
+    {
+      // wait until console visible
+      while (!Debug.developerConsoleVisible)
+      {
+        yield return null;
+      }
+      yield return null; // this is required to wait for an additional frame, without this clearing doesn't work (at least for me)
+      Debug.ClearDeveloperConsole();
+    }
+    private void ClearMap()
+    {
+      ClearThreads();
+      if (vertices != null)
+      {
+        foreach (VertexController t in vertices)
+        {
+          Destroy(t.gameObject);
+        }
+        vertices.Clear();
+      }
+      else
+      {
+        vertices = new List<VertexController>();
+      }
+      if (edges != null)
+      {
+        foreach (EdgeController t in edges)
+        {
+          Destroy(t.gameObject);
+        }
+        edges.Clear();
+      }
+      else
+      {
+        edges = new List<EdgeController>();
+      }
+      if (map == null)
+      {
+        map = new List<GameObject>();
+      }
+      else
+      {
+        map.Clear();
+      }
+      BestPath = new List<VertexController>();
+      Debug.Log("Cleared map");
+    }
+
     /// <summary>
     /// finds distances from start vertex to others
     /// </summary>
@@ -132,11 +202,7 @@ namespace Assets.Scripts
       if (!paralleling || threads.Count <= 0) return;
       if (BestInterest == MaxInterest)
       {
-        foreach (var th in threads)
-        {
-          th.Abort();
-        }
-        threads = new List<Thread>();
+        ClearThreads();
       }
 
       if (!updated) PrintBestPath(new List<VertexController>(BestPath));
@@ -301,7 +367,6 @@ namespace Assets.Scripts
     /// </summary>
     private void RandomizeVertices()
     {
-      map = new List<GameObject>();
       StartPosition = new Vector2(0, 0);
       var currentVertex = Instantiate(vertexPrefab, transform.Find("Vertices"));
       currentVertex.transform.position = StartPosition;
