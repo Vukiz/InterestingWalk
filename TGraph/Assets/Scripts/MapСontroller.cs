@@ -13,14 +13,14 @@ namespace Assets.Scripts
   {
     public Vector2 StartPosition;
     public volatile List<VertexController> BestPath;
-    public bool paralleling = true;
+    public bool Paralleling = true;
     public float SpawnRate;
     public int TimeRestriction;
-    public int BestInterest = 0;
-    public int MaxInterest = 0;
+    public int BestInterest;
+    public int MaxInterest;
 
-    private int iterations = 0;
-    private bool updated = false;
+    private int iterations;
+    private bool updatedPathColoring;
     private const int Size = 10;
 
     private GameObject vertexPrefab;
@@ -47,7 +47,7 @@ namespace Assets.Scripts
 
     private void PrintBestPath(List<VertexController> path)
     {
-      updated = true;
+      updatedPathColoring = true;
       ColorBestPath(path);
       var s = path.Aggregate("", (current, v) => current + (" " + v.name));
       Debug.Log("Best route has " + CountInterest(path) + " interest for " + CountTime(path) + " time and consists of ");
@@ -67,7 +67,7 @@ namespace Assets.Scripts
 
     private void RandomizeGraph()
     {
-      ClearMap();
+      Clear();
       RandomizeVertices();
       RandomizeEdges();
     }
@@ -96,7 +96,7 @@ namespace Assets.Scripts
     /// </summary>
     private void Init()
     {
-      ClearMap();
+      Clear();
 
       threadsStatusText = GameObject.Find("ThreadsStatus").GetComponent<Text>();
       findBtn = GameObject.Find("FindBtn").GetComponent<Button>();
@@ -117,10 +117,29 @@ namespace Assets.Scripts
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
       InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
     }
-    
-    private void ClearMap()
+    private void Clear()
     {
       ClearThreads();
+      ClearVertices();
+      ClearEdges();
+      ClearMap();
+      BestPath = new List<VertexController>();
+      Debug.Log("Cleared map");
+    }
+    private void ClearMap()
+    {
+      if (map == null)
+      {
+        map = new List<GameObject>();
+      }
+      else
+      {
+        map.Clear();
+      }
+    }
+    private void ClearVertices()
+    {
+
       if (vertices != null)
       {
         foreach (VertexController t in vertices)
@@ -133,6 +152,9 @@ namespace Assets.Scripts
       {
         vertices = new List<VertexController>();
       }
+    }
+    private void ClearEdges()
+    {
       if (edges != null)
       {
         foreach (EdgeController t in edges)
@@ -145,16 +167,6 @@ namespace Assets.Scripts
       {
         edges = new List<EdgeController>();
       }
-      if (map == null)
-      {
-        map = new List<GameObject>();
-      }
-      else
-      {
-        map.Clear();
-      }
-      BestPath = new List<VertexController>();
-      Debug.Log("Cleared map");
     }
 
     /// <summary>
@@ -189,12 +201,12 @@ namespace Assets.Scripts
 
     private void Update()
     {
-      if (!paralleling || threads.Count <= 0) return;
+      if (!Paralleling || threads.Count <= 0) return;
       if (BestInterest == MaxInterest)
       {
         ClearThreads();
       }
-      if (!updated) PrintBestPath(new List<VertexController>(BestPath));
+      if (!updatedPathColoring) PrintBestPath(new List<VertexController>(BestPath));
 
       UpdateThreadStatusText();
     }
@@ -216,7 +228,7 @@ namespace Assets.Scripts
                                                                 // .Where(vert => vert.CurrentState == VertexController.VertexState.Unvisited))
       {
         adjV.CurrentState = VertexController.VertexState.Visited;
-        if (!paralleling) DepthSearch(adjV, new List<VertexController> { currentVertex, adjV });
+        if (!Paralleling) DepthSearch(adjV, new List<VertexController> { currentVertex, adjV });
         else
         {
           var deepThread = new Thread(() => DepthSearch(adjV, new List<VertexController> { currentVertex, adjV }));
@@ -291,8 +303,8 @@ namespace Assets.Scripts
           Debug.Log("Replacing best path with current one");
           BestPath = new List<VertexController>(path);
           BestInterest = CountInterest(BestPath);
-          updated = false;
-          if (!paralleling)
+          updatedPathColoring = false;
+          if (!Paralleling)
           {
             PrintBestPath(new List<VertexController>(BestPath));
           }
