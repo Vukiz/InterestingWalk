@@ -48,6 +48,7 @@
   <ItemGroup>
      <Compile Include="Assets\Scripts\EdgeController.cs" />
      <Compile Include="Assets\Scripts\MapСontroller.cs" />
+     <Compile Include="Assets\Scripts\ThreadStateToken.cs" />
      <Compile Include="Assets\Scripts\VertexController.cs" />
  <Reference Include="UnityEngine.UI">
  <HintPath>C:/Programs/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>
