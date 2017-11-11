@@ -25,14 +25,16 @@ namespace Assets.Scripts
 
     private GameObject vertexPrefab;
     private GameObject edgePrefab;
-
+    private Text threadsStatusText;
+    private Text pathInterestText;
+    private Text pathTimeText;
     private List<GameObject> map;
     private List<EdgeController> edges;
     private List<VertexController> vertices;
     private List<Thread> threads;
 
-    private Button FindBtn;
-    private Button RandomizeBtn;
+    private Button findBtn;
+    private Button randomizeBtn;
 
     private readonly Button.ButtonClickedEvent findButtonClickedEvent = new Button.ButtonClickedEvent();
     private readonly Button.ButtonClickedEvent randomizeButtonClickedEvent = new Button.ButtonClickedEvent();
@@ -41,13 +43,6 @@ namespace Assets.Scripts
     private void Start()
     {
       Init();
-      FindBtn = GameObject.Find("FindBtn").GetComponent<Button>();
-      FindBtn.interactable = false; 
-      RandomizeBtn = GameObject.Find("RandomizeBtn").GetComponent<Button>();
-      findButtonClickedEvent.AddListener(OnFindBtnClick);
-      randomizeButtonClickedEvent.AddListener(OnRandomizeButtonClick);
-      FindBtn.onClick = findButtonClickedEvent;
-      RandomizeBtn.onClick = randomizeButtonClickedEvent;
     }
 
     private void PrintBestPath(List<VertexController> path)
@@ -80,11 +75,11 @@ namespace Assets.Scripts
     public void OnRandomizeButtonClick()
     {
       RandomizeGraph();
-      FindBtn.interactable = true;
+      findBtn.interactable = true;
     }
     public void OnFindBtnClick()
     {
-      FindBtn.interactable = false;
+      findBtn.interactable = false;
       FordBellman();
       foreach (var v in vertices)
       {
@@ -95,39 +90,34 @@ namespace Assets.Scripts
       MaxInterest = vertices.Sum(v => v.Interest);
       FindPath();
     }
+
+    /// <summary>
+    /// called once upon application start
+    /// </summary>
     private void Init()
     {
       ClearMap();
+
+      threadsStatusText = GameObject.Find("ThreadsStatus").GetComponent<Text>();
+      findBtn = GameObject.Find("FindBtn").GetComponent<Button>();
+      randomizeBtn = GameObject.Find("RandomizeBtn").GetComponent<Button>();
       edgePrefab = Resources.Load<GameObject>("Prefabs/Edge");
       vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
+      pathTimeText = GameObject.Find("PathTime").GetComponent<Text>();
+      pathInterestText = GameObject.Find("PathInterest").GetComponent<Text>();
+
+      findBtn.interactable = false;
+      findButtonClickedEvent.AddListener(OnFindBtnClick);
+      findBtn.onClick = findButtonClickedEvent;
+
+      randomizeButtonClickedEvent.AddListener(OnRandomizeButtonClick);
+      randomizeBtn.onClick = randomizeButtonClickedEvent;
+
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
+      InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
     }
-
-    private void ClearThreads()
-    {
-      if (threads != null)
-      {
-        foreach (var thread in threads)
-        {
-          thread.Abort();
-        }
-      }
-      threads = new List<Thread>();
-      Debug.Log("Cleared all threads");
-      StartCoroutine(ClearConsole());
-    }
-
-    private IEnumerator ClearConsole()
-    {
-      // wait until console visible
-      while (!Debug.developerConsoleVisible)
-      {
-        yield return null;
-      }
-      yield return null; // this is required to wait for an additional frame, without this clearing doesn't work (at least for me)
-      Debug.ClearDeveloperConsole();
-    }
+    
     private void ClearMap()
     {
       ClearThreads();
@@ -204,9 +194,16 @@ namespace Assets.Scripts
       {
         ClearThreads();
       }
-
       if (!updated) PrintBestPath(new List<VertexController>(BestPath));
 
+      UpdateThreadStatusText();
+    }
+    /// <summary>
+    /// calculates measure - current path
+    /// </summary>
+    private void CalculateHeuristicMeasure()
+    {
+      
     }
 
     /// <summary>
@@ -223,8 +220,8 @@ namespace Assets.Scripts
         else
         {
           var deepThread = new Thread(() => DepthSearch(adjV, new List<VertexController> { currentVertex, adjV }));
-          deepThread.Start();
           threads.Add(deepThread);
+          deepThread.Start();
         }
       }
     }
@@ -270,6 +267,7 @@ namespace Assets.Scripts
         DepthSearch(nextV, new List<VertexController>(path));
         path.RemoveAt(path.Count - 1);
       }
+      threads.Remove(Thread.CurrentThread);
     }
 
     /// <summary>
@@ -407,22 +405,35 @@ namespace Assets.Scripts
 
     private void UpdatePathTime()
     {
-      GameObject.Find("PathTime").GetComponent<Text>().text = CountTime(BestPath).ToString();
+     pathTimeText.text = CountTime(BestPath).ToString();
     }
 
     private void UpdatePathInterest()
     {
-      GameObject.Find("PathInterest").GetComponent<Text>().text = CountInterest(BestPath).ToString();
+      pathInterestText.text = CountInterest(BestPath).ToString();
+    }
+
+    private void UpdateThreadStatusText()
+    {
+      threadsStatusText.text = threads.Count.ToString();
     }
 
     private void OnApplicationQuit()
     {
-      foreach (var thr in threads)
+      ClearThreads();
+      Debug.Log("Found " + iterations + " possible routes");
+    }
+    private void ClearThreads()
+    {
+      if (threads != null)
       {
-        thr.Abort();
+        foreach (var thread in threads)
+        {
+          thread.Abort();
+        }
       }
       threads = new List<Thread>();
-      Debug.Log("Found " + iterations + " possible routes");
+      Debug.Log("Cleared all threads");
     }
   }
 }
