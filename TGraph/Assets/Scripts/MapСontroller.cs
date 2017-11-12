@@ -243,12 +243,7 @@ namespace Assets.Scripts
         if (!Paralleling) DepthSearch(adjV, new List<VertexController> { currentVertex, adjV });
         else
         {
-          ThreadStateToken token = new ThreadStateToken();
-          lock (stateLock)
-          {
-            stateTokens.Add(token);
-          }
-          ThreadPool.QueueUserWorkItem(s  => ParallelDepthSearch(adjV, new List<VertexController> {currentVertex, adjV}, (ThreadStateToken)s), token);
+          StartThreadFromPool(ParallelDepthSearch, adjV, new List<VertexController> { currentVertex, adjV });
         }
       }
     }
@@ -256,6 +251,16 @@ namespace Assets.Scripts
     private bool CycleExist(VertexController v, List<VertexController> path)
     {
       return path[path.Count - 1] == path[path.Count - 3] && v == path[path.Count - 2];
+    }
+
+    private void StartThreadFromPool(Action<VertexController, List<VertexController>, ThreadStateToken> action, VertexController startV, List<VertexController> startPath)
+    {
+      ThreadStateToken token = new ThreadStateToken();
+      lock (stateLock)
+      {
+        stateTokens.Add(token);
+      }
+      ThreadPool.QueueUserWorkItem(s => action(startV, startPath, (ThreadStateToken)s), token);
     }
 
     /// <summary>
@@ -266,9 +271,10 @@ namespace Assets.Scripts
     /// <param name="token"></param>
     private void ParallelDepthSearch(VertexController currV, List<VertexController> path, ThreadStateToken token)
     {
+      //если мы посетили все вершины, то дальше нет смысла искать и нужно вернуться в конечную точку
       if (vertices.All(path.Contains))
       {
-        BackPath(currV, path);
+        ParallelBackPath(currV, new List<VertexController>(path), token);
         return;
       }
       foreach (var nextV in currV.GetAdjacentVertices())
@@ -281,28 +287,26 @@ namespace Assets.Scripts
           }
           return;
         }
+
         if (path.Count > 2)
         {
           //Если мы уже были в вершине еще раз туда идти не надо
           if (CycleExist(nextV, path))
           {
-            ParallelBackPath(currV, new List<VertexController>(path), token);
+            StartThreadFromPool(ParallelBackPath, currV, new List<VertexController>(path));
             continue;
           }
-          /*if (path[path.Count - 1] == path[path.Count - 3] && path.Contains(nextV))
-          {
-              continue;
-          }*/
         }
-        path.Add(nextV);
         if (nextV.DistanceFromStart + CountTime(path) > TimeRestriction) // если пора возвращаться - возвращаемся
         {
-          path.RemoveAt(path.Count - 1);
           ParallelBackPath(currV, new List<VertexController>(path), token);
           return;
         }
-        ParallelDepthSearch(nextV, new List<VertexController>(path), token);
-        path.RemoveAt(path.Count - 1);
+        StartThreadFromPool(ParallelDepthSearch, nextV, new List<VertexController>(path) {nextV});
+      }
+      lock (stateLock)
+      {
+        stateTokens.Remove(token);
       }
     }
 
@@ -329,6 +333,11 @@ namespace Assets.Scripts
           BestPath = new List<VertexController>(path);
           BestInterest = CountInterest(BestPath);
           updatedPathColoring = false;
+          
+        }
+        lock (stateLock)
+        {
+          stateTokens.Remove(token);
         }
         return;
       }
@@ -344,12 +353,15 @@ namespace Assets.Scripts
           }
           return;
         }
-        path.Add(nextV);
+
         if (nextV.DistanceFromStart + CountTime(path) <= TimeRestriction)
         {
-          ParallelBackPath(nextV, new List<VertexController>(path), token);
+          StartThreadFromPool(ParallelBackPath, nextV, new List<VertexController>(path) {nextV});
         }
-        path.RemoveAt(path.Count - 1);
+      }
+      lock (stateLock)
+      {
+        stateTokens.Remove(token);
       }
     }
 
@@ -371,10 +383,6 @@ namespace Assets.Scripts
             BackPath(currV, new List<VertexController>(path));
             continue;
           }
-          /*if (path[path.Count - 1] == path[path.Count - 3] && path.Contains(nextV))
-          {
-              continue;
-          }*/
         }
         path.Add(nextV);
         if (nextV.DistanceFromStart + CountTime(path) > TimeRestriction) // если пора возвращаться - возвращаемся
