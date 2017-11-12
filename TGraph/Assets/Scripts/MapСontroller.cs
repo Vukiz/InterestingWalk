@@ -51,6 +51,11 @@ namespace Assets.Scripts
     private void PrintBestPath(List<VertexController> path)
     {
       updatedPathColoring = true;
+
+      if (path == null || path.Count < 1)
+      {
+        return;
+      }
       ColorBestPath(path);
       var s = path.Aggregate("", (current, v) => current + (" " + v.name));
       Debug.Log("Best route has " + CountInterest(path) + " interest for " + CountTime(path) + " time and consists of ");
@@ -116,7 +121,14 @@ namespace Assets.Scripts
 
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
-      InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
+      if (Paralleling)
+      {
+        InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
+      }
+      else
+      {
+        threadsStatusText.gameObject.SetActive(false);
+      }
 
       Clear();
     }
@@ -130,12 +142,16 @@ namespace Assets.Scripts
       findBtn.interactable = false;
       updatedPathColoring = false;
       BestPath = new List<VertexController>();
-      ClearThreads();
+
+      if (Paralleling)
+      {
+        ClearThreads();
+        UpdateThreadStatusText();
+      }
       ClearVertices();
       ClearEdges();
       ClearMap();
 
-      UpdateThreadStatusText();
       Debug.Log("Cleared map");
     }
     private void ClearMap()
@@ -213,6 +229,12 @@ namespace Assets.Scripts
 
     private void Update()
     {
+      GameObject.Find("Updated").GetComponent<Text>().text = updatedPathColoring.ToString();
+      if (!updatedPathColoring)
+      {
+        PrintBestPath(new List<VertexController>(BestPath));
+      }
+
       lock (stateLock)
       {
         if (!Paralleling || stateTokens.Count == 0 || stateTokens.All(token => token.IsCancelled))
@@ -222,10 +244,8 @@ namespace Assets.Scripts
       }
       if (BestInterest == MaxInterest)
       {
-        
         ClearThreads();
       }
-      if (!updatedPathColoring) PrintBestPath(new List<VertexController>(BestPath));
     }
     /// <summary>
     /// calculates measure - current path
@@ -245,7 +265,7 @@ namespace Assets.Scripts
       // .Where(vert => vert.CurrentState == VertexController.VertexState.Unvisited
       if (!Paralleling)
       {
-        DepthSearch(currentVertex, new List<VertexController> {currentVertex});
+        ThreadPool.QueueUserWorkItem(s => DepthSearch(currentVertex, new List<VertexController> {currentVertex}));
       }
       else
       {
@@ -405,7 +425,7 @@ namespace Assets.Scripts
           Debug.Log("Replacing best path with current one");
           BestPath = new List<VertexController>(path);
           BestInterest = CountInterest(BestPath);
-          PrintBestPath(new List<VertexController>(BestPath));
+          updatedPathColoring = false;
         }
         return;
       }
@@ -536,6 +556,7 @@ namespace Assets.Scripts
     }
     private void ClearThreads()
     {
+      if (!Paralleling) return;
       lock (stateLock)
       {
         if (stateTokens == null)
