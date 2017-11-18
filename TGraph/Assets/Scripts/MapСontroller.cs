@@ -13,7 +13,7 @@ namespace Assets.Scripts
   public class MapСontroller : MonoBehaviour
   {
     public Vector2 StartPosition;
-    public volatile List<VertexController> BestPath;
+    public List<VertexController> BestPath;
     public bool Paralleling = true;
     public float SpawnRate;
     public int TimeRestriction;
@@ -33,7 +33,8 @@ namespace Assets.Scripts
     public static List<EdgeController> Edges;
     private List<VertexController> vertices;
     private List<ThreadStateToken> stateTokens;
-    private object stateLock;
+    private object threadStateLock;
+    private object coloringLock;
 
     private Button findBtn;
     private Button randomizeBtn;
@@ -44,7 +45,8 @@ namespace Assets.Scripts
     // Use this for initialization
     private void Start()
     {
-      stateLock = new object();
+      threadStateLock = new object();
+      coloringLock = new object();
       Init();
     }
 
@@ -140,8 +142,11 @@ namespace Assets.Scripts
         iterations = 0;
       }
       findBtn.interactable = false;
-      updatedPathColoring = false;
-      BestPath = new List<VertexController>();
+      lock (coloringLock)
+      {
+        updatedPathColoring = false;
+        BestPath = new List<VertexController>();
+      }
 
       if (Paralleling)
       {
@@ -229,13 +234,15 @@ namespace Assets.Scripts
 
     private void Update()
     {
-      GameObject.Find("Updated").GetComponent<Text>().text = updatedPathColoring.ToString();
-      if (!updatedPathColoring)
+      lock (coloringLock)
       {
-        PrintBestPath(new List<VertexController>(BestPath));
+        GameObject.Find("Updated").GetComponent<Text>().text = updatedPathColoring.ToString();
+        if (!updatedPathColoring)
+        {
+          PrintBestPath(new List<VertexController>(BestPath));
+        }
       }
-
-      lock (stateLock)
+      lock (threadStateLock)
       {
         if (!Paralleling || stateTokens.Count == 0 || stateTokens.All(token => token.IsCancelled))
         {
@@ -295,13 +302,13 @@ namespace Assets.Scripts
         }
         finally
         {
-          lock (stateLock)
+          lock (threadStateLock)
           {
             stateTokens.Remove(stoken);
           }
         }
       };
-      lock (stateLock)
+      lock (threadStateLock)
       {
         stateTokens.Add(token);
       }
@@ -317,7 +324,7 @@ namespace Assets.Scripts
     private void ParallelDepthSearch(VertexController currV, List<VertexController> path, ThreadStateToken token)
     {
       //если мы посетили все вершины, то дальше нет смысла искать и нужно вернуться в конечную точку
-      if (vertices.All(path.Contains) || currV.GetAdjacentVertices().All(path.Contains))
+      if (currV.GetAdjacentVertices().All(path.Contains))
       {
         ParallelBackPath(currV, new List<VertexController>(path), token);
         return;
@@ -361,12 +368,16 @@ namespace Assets.Scripts
       {
         iterations++;
         Debug.Log("Found path with " + path.Count + " vertices and " + CountInterest(path) + " interest");
-        if (CountInterest(path) > BestInterest || CountInterest(path) == BestInterest && CountTime(path) < CountTime(BestPath))
+        lock (coloringLock)
         {
-          Debug.Log("Replacing best path with current one");
-          BestPath = new List<VertexController>(path);
-          BestInterest = CountInterest(BestPath);
-          updatedPathColoring = false;
+          if (CountInterest(path) > BestInterest ||
+              CountInterest(path) == BestInterest && CountTime(path) < CountTime(BestPath))
+          {
+            Debug.Log("Replacing best path with current one");
+            BestPath = new List<VertexController>(path);
+            BestInterest = CountInterest(BestPath);
+            updatedPathColoring = false;
+          }
         }
         return;
       }
@@ -390,25 +401,26 @@ namespace Assets.Scripts
     #region cosequentially realisation
     private void DepthSearch(VertexController currV, List<VertexController> path)
     {
-      if (vertices.All(path.Contains) || currV.GetAdjacentVertices().All(path.Contains))
+      if (currV.GetAdjacentVertices().All(path.Contains))
       {
         BackPath(currV, path);
         return;
       }
+      bool backPathNeeded = false;//нужно ли из этой вершины вернуться в начало
       foreach (var nextV in currV.GetAdjacentVertices())
       {
-        if (nextV.DistanceFromStart + CountTime(path) + nextV.GetConnectingEdge(currV).Weight > TimeRestriction) // если пора возвращаться - возвращаемся
+        //если перейдя в вершину мы превысим лимит по времени, то в эту вершину мы не пойдем 
+        // если мы идем в вершину в которой замыкается цикл - идти туда не надо
+        if (nextV.DistanceFromStart + CountTime(path) + nextV.GetConnectingEdge(currV).Weight > TimeRestriction || CycleExist(nextV, path))
         {
-          BackPath(currV, new List<VertexController>(path));
-          return;
-        }
-        //Если мы уже были в вершине еще раз туда идти не надо
-        if (CycleExist(nextV, path))
-        {
-          BackPath(currV, new List<VertexController>(path));
+          backPathNeeded = true;
           continue;
         }
         DepthSearch(nextV, new List<VertexController>(path) {nextV});
+      }
+      if (backPathNeeded)
+      {
+        BackPath(currV, new List<VertexController>(path));
       }
     }
     private void BackPath(VertexController currentVertex, List<VertexController> path)
@@ -433,7 +445,8 @@ namespace Assets.Scripts
       //по каждой смежной вершине в которой (расстояние из нее + время ребра до нее + текущее время пути  <= ограничения
       foreach (var nextV in currentVertex.GetAdjacentVertices().Where(nextV => !CycleExist(nextV, path)))
       {
-        if (nextV.DistanceFromStart + CountTime(path) <= TimeRestriction)
+        EdgeController nextEdge = currentVertex.GetConnectingEdge(nextV).
+        if (nextV.DistanceFromStart + CountTime(path) + nextEdge.Weight <= TimeRestriction)
         {
           BackPath(nextV, new List<VertexController>(path) {nextV});
         }
@@ -544,7 +557,7 @@ namespace Assets.Scripts
 
     private void UpdateThreadStatusText()
     {
-      lock (stateLock)
+      lock (threadStateLock)
       {
         threadsStatusText.text = stateTokens.Count.ToString();
       }
@@ -557,7 +570,7 @@ namespace Assets.Scripts
     private void ClearThreads()
     {
       if (!Paralleling) return;
-      lock (stateLock)
+      lock (threadStateLock)
       {
         if (stateTokens == null)
         {

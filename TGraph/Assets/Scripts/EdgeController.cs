@@ -15,7 +15,7 @@ namespace Assets.Scripts
                     new Vector2(GetComponentInChildren<TextMesh>().transform.localScale.x/transform.localScale.x,2f);
             }
         }
-
+        
         private int weight;
         public VertexController First;
         public VertexController Second;
