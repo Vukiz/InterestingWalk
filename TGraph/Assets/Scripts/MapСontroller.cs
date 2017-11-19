@@ -17,6 +17,7 @@ namespace Assets.Scripts
     public bool Paralleling = true;
     public float SpawnRate;
     public int TimeRestriction;
+
     public int BestInterest;
     public int MaxInterest;
 
@@ -149,6 +150,7 @@ namespace Assets.Scripts
         ClearThreads();
         UpdateThreadStatusText();
       }
+      BestInterest = 0;
       ClearVertices();
       ClearEdges();
       ClearMap();
@@ -314,28 +316,28 @@ namespace Assets.Scripts
       //если мы посетили все вершины, то дальше нет смысла искать и нужно вернуться в конечную точку
       if (currV.GetAdjacentVertices().All(path.Contains))
       {
-        ParallelBackPath(currV, new GraphPath(path), token);
+        ParallelBackPath(currV, path, token);
         return;
       }
+      bool backPathNeeded = false; //нужно ли из этой вершины вернуться в начало
       foreach (var nextV in currV.GetAdjacentVertices())
       {
         if (token.IsCancelled)
         {
           return;
         }
-        if (nextV.DistanceFromStart + path.Time + nextV.GetConnectingEdge(currV).Weight > TimeRestriction) // если пора возвращаться - возвращаемся
+        if (nextV.DistanceFromStart + path.Time + nextV.GetConnectingEdge(currV).Weight > TimeRestriction ||
+            path.CheckVForCycle(nextV)) // если пора возвращаться - возвращаемся
         {
-          //initiated in the same thread so no new thread is created
-          ParallelBackPath(currV, new GraphPath(path), token);
-          return;
-        }
-        //Если мы уже были в вершине еще раз туда идти не надо
-        if (path.CheckVForCycle(nextV))
-        {
-          StartThreadFromPool(ParallelBackPath, currV, new GraphPath(path));
+          backPathNeeded = true;
           continue;
         }
         StartThreadFromPool(ParallelDepthSearch, nextV, new GraphPath(path).Add(nextV));
+      }
+      if (backPathNeeded)
+      {
+        //initiated in the same thread so no new thread is created
+        ParallelBackPath(currV, new GraphPath(path), token);
       }
     }
 
@@ -349,6 +351,21 @@ namespace Assets.Scripts
     /// <param name="path"></param>
     private void ParallelBackPath(VertexController currentVertex, GraphPath path, ThreadStateToken token)
     {
+
+      var currentPathInterest = path.Interest;
+      var currentPathTime = path.Time;
+      lock (currentVertex.Locker)
+      {
+        //если существует ветвь которая на обратном пути собрала больше интереса или такое же, но быстрее, то текущая ветвь не имеет смысла
+        if (currentVertex.CurrentBestInterest > currentPathInterest
+            || (currentVertex.CurrentBestInterest == currentPathInterest &&
+                currentVertex.CurrentBestTime < currentPathTime))
+        {
+          return;
+        }
+        currentVertex.CurrentBestInterest = currentPathInterest;
+        currentVertex.CurrentBestTime = currentPathTime;
+      }
       //так как мы уже должны возвращаться мы не будем дальше искать если вернулись в начало - 
       //если бы была возможность набрать больше интереса 
       //, то такой путь найдется в другом случае - с другой последовательностью вершин
@@ -378,14 +395,15 @@ namespace Assets.Scripts
           return;
         }
 
-        if (nextV.DistanceFromStart + path.Time <= TimeRestriction)
+        EdgeController nextEdge = currentVertex.GetConnectingEdge(nextV);
+
+        if (nextV.DistanceFromStart + path.Time + nextEdge.Weight <= TimeRestriction)
         {
           StartThreadFromPool(ParallelBackPath, nextV, new GraphPath(path).Add(nextV));
         }
       }
     }
-
-
+    
     #region cosequentially realisation
 
     private void DepthSearch(VertexController currV, GraphPath path)
@@ -406,22 +424,12 @@ namespace Assets.Scripts
           backPathNeeded = true;
           continue;
         }
-        try
-        {
-          var newGraph = new GraphPath(path).Add(nextV);
-          DepthSearch(nextV, newGraph);
-
-        }
-        catch (Exception e)
-        {
-          Debug.Log(e.Message);
-        }
+        DepthSearch(nextV, new GraphPath(path).Add(nextV));
       }
       if (backPathNeeded)
       {
         BackPath(currV, path);
       }
-
     }
 
     private void BackPath(VertexController currentVertex, GraphPath path)
@@ -462,7 +470,7 @@ namespace Assets.Scripts
       foreach (var nextV in currentVertex.GetAdjacentVertices().Where(nextV => !path.CheckVForCycle(nextV)))
       {
         EdgeController nextEdge = currentVertex.GetConnectingEdge(nextV);
-       // if(nextEdge)
+       //if(nextEdge)
         if (nextV.DistanceFromStart + path.Time + nextEdge.Weight <= TimeRestriction)
         {
           BackPath(nextV, new GraphPath(path).Add(nextV));
