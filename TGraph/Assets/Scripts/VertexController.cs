@@ -17,6 +17,9 @@ namespace Assets.Scripts
       Unvisited,
       Visited
     }
+    public int CurrentBestInterest = 0;
+    public int CurrentBestTime = 0;
+    public object Locker = new object();
 
     public void RandomizeInterest()
     {
@@ -26,7 +29,7 @@ namespace Assets.Scripts
 
     public EdgeController GetConnectingEdge(VertexController connectedVertex)
     {
-      return MapСontroller.Edges.Find(e => e.IsConnecting(this, connectedVertex));
+      return ConjoinedEdges.Find(e => e.IsConnecting(this, connectedVertex));
     }
 
     public List<VertexController> GetAdjacentVertices()
