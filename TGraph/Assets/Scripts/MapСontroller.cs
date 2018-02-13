@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using UnityEngine;
@@ -32,6 +33,7 @@ namespace Assets.Scripts
     private Text threadsStatusText;
     private Text pathInterestText;
     private Text pathTimeText;
+    private Text TimerText;
 
     private List<GameObject> map;
     private List<EdgeController> edges;
@@ -83,11 +85,12 @@ namespace Assets.Scripts
     {
       Clear();
       RandomizeGraph();
+      parallelToggle.interactable = true;
       findBtn.interactable = true;
     }
     public void OnFindBtnClick()
     {
-      parallelToggle.enabled = false;
+      parallelToggle.interactable = false;
       findBtn.interactable = false;
       FordBellman();
       foreach (var v in vertices)
@@ -126,6 +129,7 @@ namespace Assets.Scripts
       edgePrefab = Resources.Load<GameObject>("Prefabs/Edge");
       vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
       pathTimeText = GameObject.Find("PathTime").GetComponent<Text>();
+      TimerText = GameObject.Find("TimerText").GetComponent<Text>();
       pathInterestText = GameObject.Find("PathInterest").GetComponent<Text>();
       parallelToggle = GameObject.Find("ParallelToggle").GetComponent<Toggle>();
 
@@ -209,14 +213,18 @@ namespace Assets.Scripts
 
     private void StopTimer()
     {
-      if (sw == null) return;
-      sw.Stop();
-      Debug.Log(sw.Elapsed);
-      sw = null;
+      TimerText.enabled = false;
+      if (sw != null)
+      {
+        sw.Stop();
+        Debug.Log(sw.Elapsed);
+      }
+      sw = new Stopwatch();
     }
 
     private void StartTimer()
     {
+      TimerText.enabled = true;
       if (sw != null)
       {
         if (sw.IsRunning)
@@ -263,6 +271,7 @@ namespace Assets.Scripts
 
     private void Update()
     {
+      TimerText.text = sw.Elapsed.TotalSeconds.ToString("0.000");
       lock (coloringLock)
       {
         GameObject.Find("Updated").GetComponent<Text>().text = updatedPathColoring.ToString();
