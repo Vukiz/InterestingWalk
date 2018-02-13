@@ -20,6 +20,7 @@ namespace Assets.Scripts
     public int CurrentBestInterest = 0;
     public int CurrentBestTime = 0;
     public object Locker = new object();
+    public float BestMeasure { get; set; }
 
     public void RandomizeInterest()
     {

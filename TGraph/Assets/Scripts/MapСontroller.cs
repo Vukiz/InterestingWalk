@@ -1,11 +1,11 @@
 ﻿using System;
-using System.CodeDom;
-using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
 namespace Assets.Scripts
@@ -14,7 +14,8 @@ namespace Assets.Scripts
   {
     public Vector2 StartPosition;
     public GraphPath BestPath;
-    public bool Paralleling = true;
+    private bool paralleling = true;
+    private Toggle parallelToggle;
     public float SpawnRate;
     public int TimeRestriction;
 
@@ -43,9 +44,8 @@ namespace Assets.Scripts
     private Button findBtn;
     private Button randomizeBtn;
 
-    private readonly Button.ButtonClickedEvent findButtonClickedEvent = new Button.ButtonClickedEvent();
-    private readonly Button.ButtonClickedEvent randomizeButtonClickedEvent = new Button.ButtonClickedEvent();
-    
+    private Stopwatch sw;
+
     // Use this for initialization
     private void Start()
     {
@@ -87,6 +87,7 @@ namespace Assets.Scripts
     }
     public void OnFindBtnClick()
     {
+      parallelToggle.enabled = false;
       findBtn.interactable = false;
       FordBellman();
       foreach (var v in vertices)
@@ -99,6 +100,21 @@ namespace Assets.Scripts
       FindPath();
     }
 
+    private void OnParallelToggle(bool value)
+    {
+      paralleling = value;
+      if (value)
+      {
+        InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
+        threadsStatusText.gameObject.SetActive(true);
+      }
+      else
+      {
+        CancelInvoke("UpdateThreadStatusText");
+        threadsStatusText.gameObject.SetActive(false);
+
+      }
+    }
     /// <summary>
     /// called once upon application start
     /// </summary>
@@ -111,24 +127,15 @@ namespace Assets.Scripts
       vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
       pathTimeText = GameObject.Find("PathTime").GetComponent<Text>();
       pathInterestText = GameObject.Find("PathInterest").GetComponent<Text>();
+      parallelToggle = GameObject.Find("ParallelToggle").GetComponent<Toggle>();
 
-      findButtonClickedEvent.AddListener(OnFindBtnClick);
-      findBtn.onClick = findButtonClickedEvent;
-
-      randomizeButtonClickedEvent.AddListener(OnRandomizeButtonClick);
-      randomizeBtn.onClick = randomizeButtonClickedEvent;
+      parallelToggle.onValueChanged.AddListener(OnParallelToggle);
+      findBtn.onClick.AddListener(OnFindBtnClick);
+      randomizeBtn.onClick.AddListener(OnRandomizeButtonClick);
 
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
-      if (Paralleling)
-      {
-        InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
-      }
-      else
-      {
-        threadsStatusText.gameObject.SetActive(false);
-      }
-
+      OnParallelToggle(paralleling);//true by default 
       Clear();
     }
     private void Clear()
@@ -145,7 +152,7 @@ namespace Assets.Scripts
         BestPath = new GraphPath();
       }
 
-      if (Paralleling)
+      if (paralleling)
       {
         ClearThreads();
         UpdateThreadStatusText();
@@ -154,7 +161,7 @@ namespace Assets.Scripts
       ClearVertices();
       ClearEdges();
       ClearMap();
-
+      StopTimer();
       Debug.Log("Cleared map");
     }
     private void ClearMap()
@@ -200,6 +207,30 @@ namespace Assets.Scripts
       }
     }
 
+    private void StopTimer()
+    {
+      if (sw == null) return;
+      sw.Stop();
+      Debug.Log(sw.Elapsed);
+      sw = null;
+    }
+
+    private void StartTimer()
+    {
+      if (sw != null)
+      {
+        if (sw.IsRunning)
+        {
+          return;
+        }
+      }
+      else
+      {
+        sw = new Stopwatch();
+      }
+      sw.Start();
+    }
+
     /// <summary>
     /// finds distances from start vertex to others
     /// </summary>
@@ -243,7 +274,7 @@ namespace Assets.Scripts
       
       lock (threadStateLock)
       {
-        if (!Paralleling || stateTokens.Count == 0 || stateTokens.All(token => token.IsCancelled))
+        if (!paralleling || stateTokens.Count == 0 || stateTokens.All(token => token.IsCancelled))
         {
           return;
         }
@@ -254,22 +285,60 @@ namespace Assets.Scripts
       }
     }
     /// <summary>
-    /// calculates measure - current path
+    /// calculates measure as Intererst/Time
     /// </summary>
-    private void CalculateHeuristicMeasure()
+    private float HeuristicMeasure(float interest, float time)
     {
-      
+      return interest / time;
     }
 
+    private void SpreadMeasure()
+    {
+      foreach (var vertex in vertices)
+      {
+        vertex.CurrentState = VertexController.VertexState.Unvisited;
+      }
+      var maxDepth = vertices.Max(v => v.Depth);
+      for (var i = 0; i < maxDepth; i++)//вверх по глубине
+      {
+        foreach (var currentVertex in vertices.Where(v => v.Depth == i))
+        {
+          foreach (var equalVertex in currentVertex.GetAdjacentVertices().Where(vertex => vertex.Depth == currentVertex.Depth))
+          {
+            float currentMeasure;
+            var edgeBetweenVertices = currentVertex.GetConnectingEdge(equalVertex);
+            if (equalVertex.BestMeasure < currentVertex.BestMeasure)
+            {
+              currentMeasure = HeuristicMeasure(currentVertex.Interest, edgeBetweenVertices.Weight) +
+                               equalVertex.BestMeasure;
+              if (currentMeasure > currentVertex.BestMeasure)
+              {
+                currentVertex.BestMeasure = currentMeasure;
+              }
+            }
+            else
+            {
+              currentMeasure = HeuristicMeasure(equalVertex.Interest, edgeBetweenVertices.Weight) +
+                               currentVertex.BestMeasure;
+              if (currentMeasure > equalVertex.BestMeasure)
+              {
+                equalVertex.BestMeasure = currentMeasure;
+              }
+            }
+          }
+        }
+      }
+    }
     /// <summary>
     /// алгоритм в два шага DepthSearch и BackPath вызываемый из него
     /// </summary>
     private void FindPath()
     {
       var currentVertex = vertices[0];
+      StartTimer();
       // запустить рекурсионный поиск из каждой вершины смежной со стартовой
       // .Where(vert => vert.CurrentState == VertexController.VertexState.Unvisited
-      if (!Paralleling)
+      if (!paralleling)
       {
         ThreadPool.QueueUserWorkItem(s => DepthSearch(currentVertex, new GraphPath().Add(currentVertex)));
       }
@@ -305,6 +374,7 @@ namespace Assets.Scripts
       ThreadPool.QueueUserWorkItem(s => wrappedAction(s), token);
     }
 
+    #region Parallel realisation
     /// <summary>
     /// вызывается на первом шаге когда мы двигаемся до тех пор пока не настанет время идти назад (BackPath)
     /// </summary>
@@ -403,7 +473,7 @@ namespace Assets.Scripts
         }
       }
     }
-    
+    #endregion
     #region cosequentially realisation
 
     private void DepthSearch(VertexController currV, GraphPath path)
@@ -576,7 +646,7 @@ namespace Assets.Scripts
     }
     private void ClearThreads()
     {
-      if (!Paralleling) return;
+      if (!paralleling) return;
       lock (threadStateLock)
       {
         if (stateTokens == null)
