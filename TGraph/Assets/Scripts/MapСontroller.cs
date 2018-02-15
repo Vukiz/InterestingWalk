@@ -14,14 +14,14 @@ namespace Assets.Scripts
   public class MapСontroller : MonoBehaviour
   {
     public Vector2 StartPosition;
-    public GraphPath BestPath;
+    public GraphPath CurrentBestPath; //best path from start to end --- {Vstart, V2, .... , Vend}
     private bool paralleling = true;
     private Toggle parallelToggle;
     public float SpawnRate;
     public int TimeRestriction;
 
-    public int BestInterest;
-    public int MaxInterest;
+    public int BestInterest = 0;
+    public int MaxInterest = -1;
 
     private int iterations;
     private bool updatedPathColoring;
@@ -33,7 +33,7 @@ namespace Assets.Scripts
     private Text threadsStatusText;
     private Text pathInterestText;
     private Text pathTimeText;
-    private Text TimerText;
+    private Text timerText;
 
     private List<GameObject> map;
     private List<EdgeController> edges;
@@ -46,7 +46,7 @@ namespace Assets.Scripts
     private Button findBtn;
     private Button randomizeBtn;
 
-    private Stopwatch sw;
+    private readonly Stopwatch sw = new Stopwatch();
 
     // Use this for initialization
     private void Start()
@@ -56,23 +56,27 @@ namespace Assets.Scripts
       Init();
     }
 
-    private void PrintBestPath()
+    private void ClearGraphColoring()
     {
-      updatedPathColoring = true;
-
-      if (BestPath == null || BestPath.VerticesCount() == 0)
-      {
-        return;
-      }
-
       foreach (var edge in edges)
       {
         edge.CurrentEdgeState = EdgeController.EdgeState.Unused;
       }
-      BestPath.ColorGraph();
-      var s = BestPath.GetPathFullVertices();
-      Debug.Log("Best route has " + BestPath.Interest + " interest for " + BestPath.Time + " time and consists of ");
-      Debug.Log(s);
+    }
+
+    private void PrintBestPath()
+    {
+      updatedPathColoring = true;
+      ClearGraphColoring();
+
+      if (CurrentBestPath == null || CurrentBestPath.VerticesCount() == 0)
+      {
+        return;
+      }
+      CurrentBestPath.ColorGraph();
+      var s = CurrentBestPath.GetAllPathVertices();
+      Debug.Log("Best route has " + CurrentBestPath.Interest + " interest for " + CurrentBestPath.Time +
+                " time and consists of " + s);
     }
 
     private void RandomizeGraph()
@@ -83,15 +87,13 @@ namespace Assets.Scripts
 
     public void OnRandomizeButtonClick()
     {
-      Clear();
-      RandomizeGraph();
-      parallelToggle.interactable = true;
+      if (edges.Any())
+      {
+        Clear();
+      }
+      FinalizeCalculations();
       findBtn.interactable = true;
-    }
-    public void OnFindBtnClick()
-    {
-      parallelToggle.interactable = false;
-      findBtn.interactable = false;
+      RandomizeGraph();
       FordBellman();
       foreach (var v in vertices)
       {
@@ -100,24 +102,26 @@ namespace Assets.Scripts
       vertices[0].Depth = 0;
       SpreadDepth(vertices[0]);
       MaxInterest = vertices.Sum(v => v.Interest);
+    }
+
+    public void OnFindBtnClick()
+    {
+      FinalizeCalculations();
+
+      ResetMap();
+      findBtn.interactable = false;
       FindPath();
     }
 
     private void OnParallelToggle(bool value)
     {
+      if (map.Any())
+      {
+        findBtn.interactable = true;
+      }
       paralleling = value;
-      if (value)
-      {
-        InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
-        threadsStatusText.gameObject.SetActive(true);
-      }
-      else
-      {
-        CancelInvoke("UpdateThreadStatusText");
-        threadsStatusText.gameObject.SetActive(false);
-
-      }
     }
+
     /// <summary>
     /// called once upon application start
     /// </summary>
@@ -129,7 +133,7 @@ namespace Assets.Scripts
       edgePrefab = Resources.Load<GameObject>("Prefabs/Edge");
       vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
       pathTimeText = GameObject.Find("PathTime").GetComponent<Text>();
-      TimerText = GameObject.Find("TimerText").GetComponent<Text>();
+      timerText = GameObject.Find("TimerText").GetComponent<Text>();
       pathInterestText = GameObject.Find("PathInterest").GetComponent<Text>();
       parallelToggle = GameObject.Find("ParallelToggle").GetComponent<Toggle>();
 
@@ -139,103 +143,70 @@ namespace Assets.Scripts
 
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
-      OnParallelToggle(paralleling);//true by default 
-      Clear();
+      InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
+
+      SetBestPath(new GraphPath());
+      lock (threadStateLock)
+      {
+        stateTokens = new List<ThreadStateToken>();
+      }
+      edges = new List<EdgeController>();
+      vertices = new List<VertexController>();
+      map = new List<GameObject>();
+      OnParallelToggle(paralleling); //true by default 
+
+      findBtn.interactable = false;
     }
+
+    /// <summary>
+    /// clears map : removes all edges and vertices, clears threads and stops timer. nullifies Bestpath
+    /// </summary>
     private void Clear()
     {
-      if (iterations > 0)
-      {
-        Debug.Log("Found " + iterations + " possible routes");
-        iterations = 0;
-      }
       findBtn.interactable = false;
-      lock (coloringLock)
-      {
-        updatedPathColoring = false;
-        BestPath = new GraphPath();
-      }
-
-      if (paralleling)
-      {
-        ClearThreads();
-        UpdateThreadStatusText();
-      }
+      SetBestPath(new GraphPath());
       BestInterest = 0;
+      MaxInterest = -1;
       ClearVertices();
       ClearEdges();
-      ClearMap();
+      map.Clear();
       StopTimer();
+      timerText.enabled = false;
       Debug.Log("Cleared map");
     }
-    private void ClearMap()
-    {
-      if (map == null)
-      {
-        map = new List<GameObject>();
-      }
-      else
-      {
-        map.Clear();
-      }
-    }
+
     private void ClearVertices()
     {
-
-      if (vertices != null)
+      foreach (VertexController t in vertices)
       {
-        foreach (VertexController t in vertices)
-        {
-          Destroy(t.gameObject);
-        }
-        vertices.Clear();
+        Destroy(t.gameObject);
       }
-      else
-      {
-        vertices = new List<VertexController>();
-      }
+      vertices.Clear();
     }
+
     private void ClearEdges()
     {
-      if (edges != null)
+      foreach (EdgeController t in edges)
       {
-        foreach (EdgeController t in edges)
-        {
-          Destroy(t.gameObject);
-        }
-        edges.Clear();
+        Destroy(t.gameObject);
       }
-      else
-      {
-        edges = new List<EdgeController>();
-      }
+      edges.Clear();
     }
 
     private void StopTimer()
     {
-      TimerText.enabled = false;
-      if (sw != null)
-      {
-        sw.Stop();
-        Debug.Log(sw.Elapsed);
-      }
-      sw = new Stopwatch();
+      sw.Stop();
+      Debug.Log(sw.Elapsed);
     }
 
     private void StartTimer()
     {
-      TimerText.enabled = true;
-      if (sw != null)
+      timerText.enabled = true;
+      if (sw.IsRunning)
       {
-        if (sw.IsRunning)
-        {
-          return;
-        }
+        return;
       }
-      else
-      {
-        sw = new Stopwatch();
-      }
+      sw.Reset();
       sw.Start();
     }
 
@@ -271,7 +242,7 @@ namespace Assets.Scripts
 
     private void Update()
     {
-      TimerText.text = sw.Elapsed.TotalSeconds.ToString("0.000");
+      timerText.text = sw.Elapsed.TotalSeconds.ToString(CultureInfo.InvariantCulture);
       lock (coloringLock)
       {
         GameObject.Find("Updated").GetComponent<Text>().text = updatedPathColoring.ToString();
@@ -280,19 +251,35 @@ namespace Assets.Scripts
           PrintBestPath();
         }
       }
-      
-      lock (threadStateLock)
+    }
+
+    private void ResetMap()
+    {
+      SetBestPath(new GraphPath());
+      ClearThreads();
+    }
+
+    /// <summary>
+    /// called upon calcualtions complition
+    /// </summary>
+    private void FinalizeCalculations()
+    {
+      ClearThreads();
+      if (sw.IsRunning)
       {
-        if (!paralleling || stateTokens.Count == 0 || stateTokens.All(token => token.IsCancelled))
-        {
-          return;
-        }
+        StopTimer();
       }
-      if (BestInterest == MaxInterest)
+      if (CurrentBestPath.Interest > 0)
       {
-        ClearThreads();
+        Debug.Log("Found path with " + CurrentBestPath.VerticesCount() + " vertices and " + CurrentBestPath.Interest + " interest");
+      }
+      if (iterations > 0)
+      {
+        Debug.Log("Found " + iterations + " possible routes");
+        iterations = 0;
       }
     }
+
     /// <summary>
     /// calculates measure as Intererst/Time
     /// </summary>
@@ -308,11 +295,12 @@ namespace Assets.Scripts
         vertex.CurrentState = VertexController.VertexState.Unvisited;
       }
       var maxDepth = vertices.Max(v => v.Depth);
-      for (var i = 0; i < maxDepth; i++)//вверх по глубине
+      for (var i = 0; i < maxDepth; i++) //вверх по глубине
       {
         foreach (var currentVertex in vertices.Where(v => v.Depth == i))
         {
-          foreach (var equalVertex in currentVertex.GetAdjacentVertices().Where(vertex => vertex.Depth == currentVertex.Depth))
+          foreach (var equalVertex in currentVertex.GetAdjacentVertices()
+            .Where(vertex => vertex.Depth == currentVertex.Depth))
           {
             float currentMeasure;
             var edgeBetweenVertices = currentVertex.GetConnectingEdge(equalVertex);
@@ -338,6 +326,7 @@ namespace Assets.Scripts
         }
       }
     }
+
     /// <summary>
     /// алгоритм в два шага DepthSearch и BackPath вызываемый из него
     /// </summary>
@@ -347,16 +336,17 @@ namespace Assets.Scripts
       StartTimer();
       // запустить рекурсионный поиск из каждой вершины смежной со стартовой
       // .Where(vert => vert.CurrentState == VertexController.VertexState.Unvisited
+
       if (!paralleling)
       {
-        ThreadPool.QueueUserWorkItem(s => DepthSearch(currentVertex, new GraphPath().Add(currentVertex)));
+        StartThreadFromPool(DepthSearch, currentVertex, new GraphPath().Add(currentVertex));
       }
       else
       {
         StartThreadFromPool(ParallelDepthSearch, currentVertex, new GraphPath().Add(currentVertex));
       }
     }
-    
+
     private void StartThreadFromPool(Action<VertexController, GraphPath, ThreadStateToken> action,
       VertexController startV, GraphPath startPath)
     {
@@ -373,6 +363,10 @@ namespace Assets.Scripts
           lock (threadStateLock)
           {
             stateTokens.Remove(stoken);
+            if (stateTokens.Count == 0)
+            {
+              FinalizeCalculations();
+            }
           }
         }
       };
@@ -383,7 +377,18 @@ namespace Assets.Scripts
       ThreadPool.QueueUserWorkItem(s => wrappedAction(s), token);
     }
 
+    private void SetBestPath(GraphPath newPath)
+    {
+      CurrentBestPath = newPath;
+      BestInterest = CurrentBestPath.Interest;
+      lock (coloringLock)
+      {
+        updatedPathColoring = false;
+      }
+    }
+
     #region Parallel realisation
+
     /// <summary>
     /// вызывается на первом шаге когда мы двигаемся до тех пор пока не настанет время идти назад (BackPath)
     /// </summary>
@@ -451,17 +456,12 @@ namespace Assets.Scripts
       if (currentVertex == vertices[0])
       {
         iterations++;
-        Debug.Log("Found path with " + path.VerticesCount() + " vertices and " + path.Interest + " interest");
-        lock (coloringLock)
+
+        if (CurrentBestPath.Interest == 0 ||
+            path.Interest > BestInterest ||
+            path.Interest == BestInterest && path.Time < CurrentBestPath.Time)
         {
-          if (path.Interest > BestInterest ||
-              path.Interest == BestInterest && path.Time < BestPath.Time)
-          {
-            Debug.Log("Replacing best path with current one");
-            BestPath = path;
-            BestInterest = BestPath.Interest;
-            updatedPathColoring = false;
-          }
+          SetBestPath(path);
         }
         return;
       }
@@ -482,10 +482,12 @@ namespace Assets.Scripts
         }
       }
     }
+
     #endregion
+
     #region cosequentially realisation
 
-    private void DepthSearch(VertexController currV, GraphPath path)
+    private void DepthSearch(VertexController currV, GraphPath path, ThreadStateToken token = null)
     {
       if (currV.GetAdjacentVertices().All(path.Contains))
       {
@@ -516,31 +518,26 @@ namespace Assets.Scripts
       var currentPathInterest = path.Interest;
       var currentPathTime = path.Time;
       //если существует ветвь которая на обратном пути собрала больше интереса или такое же, но быстрее, то текущая ветвь не имеет смысла
-      if (currentVertex.CurrentBestInterest > currentPathInterest 
-        || (currentVertex.CurrentBestInterest == currentPathInterest && currentVertex.CurrentBestTime < currentPathTime))
+      if (currentVertex.CurrentBestInterest > currentPathInterest
+          || (currentVertex.CurrentBestInterest == currentPathInterest &&
+              currentVertex.CurrentBestTime < currentPathTime))
       {
         return;
       }
       currentVertex.CurrentBestInterest = currentPathInterest;
       currentVertex.CurrentBestTime = currentPathTime;
-      
+
       //так как мы уже должны возвращаться мы не будем дальше искать если вернулись в начало - 
       //если бы была возможность набрать больше интереса 
       //, то такой путь найдется в другом случае - с другой последовательностью вершин
       if (currentVertex == vertices[0])
       {
-        lock (coloringLock)
+        iterations++;
+        if (CurrentBestPath.Interest == 0 ||
+            path.Interest > BestInterest ||
+            path.Interest == BestInterest && path.Time < CurrentBestPath.Time)
         {
-          iterations++;
-          Debug.Log("Found path with " + path.VerticesCount() + " vertices and " + path.Interest + " interest");
-          if (path.Interest > BestInterest ||
-              path.Interest == BestInterest && path.Time < BestPath.Time)
-          {
-            Debug.Log("Replacing best path with current one");
-            BestPath = path;
-            BestInterest = BestPath.Interest;
-            updatedPathColoring = false;
-          }
+          SetBestPath(path);
         }
         return;
       }
@@ -549,14 +546,15 @@ namespace Assets.Scripts
       foreach (var nextV in currentVertex.GetAdjacentVertices().Where(nextV => !path.CheckVForCycle(nextV)))
       {
         EdgeController nextEdge = currentVertex.GetConnectingEdge(nextV);
-       //if(nextEdge)
+        //if(nextEdge)
         if (nextV.DistanceFromStart + path.Time + nextEdge.Weight <= TimeRestriction)
         {
           BackPath(nextV, new GraphPath(path).Add(nextV));
         }
       }
     }
-#endregion
+
+    #endregion
 
     private static void SpreadDepth(VertexController currentVertex)
     {
@@ -573,7 +571,7 @@ namespace Assets.Scripts
         }
       }
     }
-    
+
     /// <summary>
     /// creating edge between two vertices by their position
     /// </summary>
@@ -620,12 +618,13 @@ namespace Assets.Scripts
     private void RandomizeEdges()
     {
       var unlinkedV = new List<GameObject>(map);
-      var path = new List<GameObject> { unlinkedV.First() };
+      var path = new List<GameObject> {unlinkedV.First()};
       unlinkedV.Remove(path.First());
       while (unlinkedV.Count > 0)
       {
         var nextV = unlinkedV[Random.Range(0, unlinkedV.Count)];
-        CreateEdge(path[Random.Range(0, path.Count - 1)].GetComponent<VertexController>(), nextV.GetComponent<VertexController>(), Random.Range(1, 7));
+        CreateEdge(path[Random.Range(0, path.Count - 1)].GetComponent<VertexController>(),
+          nextV.GetComponent<VertexController>(), Random.Range(1, 7));
         path.Add(nextV);
         unlinkedV.Remove(nextV);
       }
@@ -633,12 +632,12 @@ namespace Assets.Scripts
 
     private void UpdatePathTime()
     {
-     pathTimeText.text = BestPath.Time.ToString();
+      pathTimeText.text = CurrentBestPath.Time.ToString();
     }
 
     private void UpdatePathInterest()
     {
-      pathInterestText.text = BestPath.Interest.ToString();
+      pathInterestText.text = CurrentBestPath.Interest.ToString();
     }
 
     private void UpdateThreadStatusText()
@@ -651,25 +650,19 @@ namespace Assets.Scripts
 
     private void OnApplicationQuit()
     {
+      Debug.Log("Quit apllication");
       ClearThreads();
     }
+
     private void ClearThreads()
     {
-      if (!paralleling) return;
       lock (threadStateLock)
       {
-        if (stateTokens == null)
+        foreach (var token in stateTokens)
         {
-          stateTokens = new List<ThreadStateToken>();
+          token.IsCancelled = true;
         }
-        else
-        {
-          foreach (var token in stateTokens)
-          {
-            token.IsCancelled = true;
-          }
-          stateTokens = new List<ThreadStateToken>();
-        }
+        stateTokens = new List<ThreadStateToken>();
       }
       Debug.Log("Cleared all threads");
     }

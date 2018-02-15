@@ -106,8 +106,8 @@ namespace Assets.Scripts
       return vertices.GetEnumerator();
     }
 
-    public object GetPathFullVertices()
-    {
+    public object GetAllPathVertices()
+    { 
       return vertices.Aggregate("", (current, v) => current + (" " + v.name));
     }
 
