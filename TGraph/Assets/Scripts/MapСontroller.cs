@@ -21,7 +21,7 @@ namespace Assets.Scripts
     public int TimeRestriction;
 
     public int BestInterest = 0;
-    public int MaxInterest = -1;
+    public int MaxInterest;
 
     private int iterations;
     private bool updatedPathColoring;
@@ -144,7 +144,7 @@ namespace Assets.Scripts
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
       InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
-
+      MaxInterest = -1;
       SetBestPath(new GraphPath());
       lock (threadStateLock)
       {
@@ -332,18 +332,17 @@ namespace Assets.Scripts
     /// </summary>
     private void FindPath()
     {
-      var currentVertex = vertices[0];
       StartTimer();
       // запустить рекурсионный поиск из каждой вершины смежной со стартовой
-      // .Where(vert => vert.CurrentState == VertexController.VertexState.Unvisited
-
+      var currentVertex = vertices[0];
+      var startPath = new GraphPath().Add(currentVertex);
       if (!paralleling)
       {
-        StartThreadFromPool(DepthSearch, currentVertex, new GraphPath().Add(currentVertex));
+        StartThreadFromPool(DepthSearch, currentVertex, startPath);
       }
       else
       {
-        StartThreadFromPool(ParallelDepthSearch, currentVertex, new GraphPath().Add(currentVertex));
+        StartThreadFromPool(ParallelDepthSearch, currentVertex, startPath);
       }
     }
 
@@ -384,6 +383,10 @@ namespace Assets.Scripts
       lock (coloringLock)
       {
         updatedPathColoring = false;
+      }
+      if (BestInterest == MaxInterest)
+      {
+        FinalizeCalculations();
       }
     }
 
@@ -546,7 +549,6 @@ namespace Assets.Scripts
       foreach (var nextV in currentVertex.GetAdjacentVertices().Where(nextV => !path.CheckVForCycle(nextV)))
       {
         EdgeController nextEdge = currentVertex.GetConnectingEdge(nextV);
-        //if(nextEdge)
         if (nextV.DistanceFromStart + path.Time + nextEdge.Weight <= TimeRestriction)
         {
           BackPath(nextV, new GraphPath(path).Add(nextV));
