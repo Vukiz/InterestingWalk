@@ -81,8 +81,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\EdgeController.cs" />
+    <Compile Include="Assets\Scripts\EdgeState.cs" />
     <Compile Include="Assets\Scripts\GraphPath.cs" />
-    <Compile Include="Assets\Scripts\MapСontroller.cs" />
+    <Compile Include="Assets\Scripts\MapContent.cs" />
+    <Compile Include="Assets\Scripts\MapViewСontroller.cs" />
     <Compile Include="Assets\Scripts\ThreadStateToken.cs" />
     <Compile Include="Assets\Scripts\VertexController.cs" />
   </ItemGroup>

@@ -98,7 +98,7 @@ namespace Assets.Scripts
     {
       foreach (var edge in edges)
       {
-        edge.CurrentEdgeState = EdgeController.EdgeState.Used;
+        edge.CurrentEdgeState = EdgeState.Used;
       }
     }
     public IEnumerator GetEnumerator()

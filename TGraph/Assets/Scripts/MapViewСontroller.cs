@@ -11,7 +11,7 @@ using Random = UnityEngine.Random;
 
 namespace Assets.Scripts
 {
-  public class MapСontroller : MonoBehaviour
+  public class MapViewСontroller : MonoBehaviour
   {
     public Vector2 StartPosition;
     public GraphPath CurrentBestPath; //best path from start to end --- {Vstart, V2, .... , Vend}
@@ -60,7 +60,7 @@ namespace Assets.Scripts
     {
       foreach (var edge in edges)
       {
-        edge.CurrentEdgeState = EdgeController.EdgeState.Unused;
+        edge.CurrentEdgeState = EdgeState.Unused;
       }
     }
 
@@ -102,6 +102,7 @@ namespace Assets.Scripts
       vertices[0].Depth = 0;
       SpreadDepth(vertices[0]);
       MaxInterest = vertices.Sum(v => v.Interest);
+      SpreadMeasure();
     }
 
     public void OnFindBtnClick()
@@ -295,7 +296,7 @@ namespace Assets.Scripts
         vertex.CurrentState = VertexController.VertexState.Unvisited;
       }
       var maxDepth = vertices.Max(v => v.Depth);
-      for (var i = 0; i < maxDepth; i++) //вверх по глубине
+      for (var i = 1; i < maxDepth; i++) //вверх по глубине
       {
         foreach (var currentVertex in vertices.Where(v => v.Depth == i))
         {
