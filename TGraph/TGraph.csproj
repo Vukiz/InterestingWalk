@@ -86,6 +86,7 @@
     <Compile Include="Assets\Scripts\MapContent.cs" />
     <Compile Include="Assets\Scripts\MapViewСontroller.cs" />
     <Compile Include="Assets\Scripts\ThreadStateToken.cs" />
+    <Compile Include="Assets\Scripts\TimeHelper.cs" />
     <Compile Include="Assets\Scripts\VertexController.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -17,11 +17,22 @@ namespace Assets.Scripts
       Unvisited,
       Visited
     }
+    
     public int CurrentBestInterest = 0;
     public int CurrentBestTime = 0;
     public object Locker = new object();
     public float BestMeasure { get; set; }
 
+    public void Init(Vector2 startPosition, string Name, string childName = null)
+    {
+      gameObject.transform.position = startPosition;
+      gameObject.name = Name;
+      RandomizeInterest();
+      if (!string.IsNullOrEmpty(childName))
+      {
+        GetComponentInChildren<TextMesh>().text = childName;
+      }
+    }
     public void RandomizeInterest()
     {
       Interest = Random.Range(1, 10);
@@ -37,5 +48,6 @@ namespace Assets.Scripts
     {
       return ConjoinedEdges.Select(edge => (edge.First != this) ? edge.First : edge.Second).ToList();
     }
+
   }
 }
