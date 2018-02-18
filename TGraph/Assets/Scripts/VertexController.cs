@@ -48,6 +48,5 @@ namespace Assets.Scripts
     {
       return ConjoinedEdges.Select(edge => (edge.First != this) ? edge.First : edge.Second).ToList();
     }
-
   }
 }

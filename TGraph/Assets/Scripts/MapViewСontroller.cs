@@ -9,17 +9,18 @@ namespace Assets.Scripts
   {
     private bool paralleling = true;
     private Toggle parallelToggle;
-    public float SpawnRate;
-    public int TimeRestriction;
  
+    private Button findBtn;
+    private Button randomizeBtn;
     private Text threadsStatusText;
     private Text pathInterestText;
     private Text pathTimeText;
     private Text timerText;
 
-    private Button findBtn;
-    private Button randomizeBtn;
     private MapContent content;
+
+    public int TimeRestriction;
+    public float SpawnRate;
 
     // Use this for initialization
     private void Start()
@@ -27,28 +28,11 @@ namespace Assets.Scripts
       content = new MapContent(SpawnRate, TimeRestriction);
       Init();
     }
-
-    public void OnRandomizeButtonClick()
+    private void Update()
     {
-      findBtn.interactable = true;
-      content.OnRandomizeClick();
+      timerText.text = content.SwCurrentTime;
+      content.PrintBestPathIfNeeded();
     }
-
-    public void OnFindBtnClick()
-    {
-      findBtn.interactable = false;
-      content.FindPath(paralleling);
-    }
-
-    private void OnParallelToggle(bool value)
-    {
-      if (content.Map.Any())
-      {
-        findBtn.interactable = true;
-      }
-      paralleling = value;
-    }
-
     /// <summary>
     /// called once upon application start
     /// </summary>
@@ -69,23 +53,31 @@ namespace Assets.Scripts
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
       InvokeRepeating("UpdateThreadStatusText", 0.2f, 1f);
-     
+
       OnParallelToggle(paralleling); //true by default 
 
       findBtn.interactable = false;
     }
-
-    private void Update()
+    public void OnRandomizeButtonClick()
     {
-      timerText.text = content.SwCurrentTime;
-
-      content.PrintBestPathIfNeeded();
-
-
+      findBtn.interactable = true;
+      content.OnRandomizeClick();
     }
 
+    public void OnFindBtnClick()
+    {
+      findBtn.interactable = false;
+      content.FindPath(paralleling);
+    }
 
-
+    private void OnParallelToggle(bool value)
+    {
+      if (content.IsMapEmpty)
+      {
+        findBtn.interactable = true;
+      }
+      paralleling = value;
+    }
 
     private void UpdatePathTime()
     {
@@ -100,12 +92,6 @@ namespace Assets.Scripts
     private void UpdateThreadStatusText()
     {
       threadsStatusText.text = content.StateTokensCount;
-    }
-
-    private void OnApplicationQuit()
-    {
-      Debug.Log("Quit apllication");
-      content.ClearThreads();
     }
   }
 }
