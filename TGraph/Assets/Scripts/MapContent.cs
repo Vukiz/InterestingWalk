@@ -96,6 +96,7 @@ namespace Assets.Scripts
       if (sw.IsRunning)
       {
         StopTimer();
+        ResetVertices();
       }
       if (currentBestPath.Interest > 0)
       {
@@ -105,6 +106,15 @@ namespace Assets.Scripts
       {
         Debug.Log("Found " + iterations + " possible routes");
         iterations = 0;
+      }
+    }
+
+    private void ResetVertices()
+    {
+      foreach (var vertex in vertices)
+      {
+        vertex.CurrentBestInterest = 0;
+        vertex.CurrentBestTime = 0;
       }
     }
 
@@ -508,10 +518,8 @@ namespace Assets.Scripts
       lock (currentVertex.Locker)
       {
         //если существует ветвь которая на обратном пути собрала больше интереса или такое же, но быстрее, то текущая ветвь не имеет смысла
-        if (currentVertex.CurrentBestInterest > currentPathInterest
-            || (currentVertex.CurrentBestInterest == currentPathInterest &&
-                currentVertex.CurrentBestTime < currentPathTime))
-        {
+        if (CheckBranchForRedundancy(currentVertex, currentPathInterest, currentPathTime))
+        { 
           return;
         }
         currentVertex.CurrentBestInterest = currentPathInterest;
@@ -525,9 +533,7 @@ namespace Assets.Scripts
         iterations++;
         lock (bestPathLock)
         {
-          if (currentBestPath.Interest == 0 ||
-              path.Interest > bestInterest ||
-              path.Interest == bestInterest && path.Time < currentBestPath.Time)
+          if (IsPathBetter(path))
           {
             SetBestPath(path);
           }
@@ -554,6 +560,20 @@ namespace Assets.Scripts
 
     #endregion
 
+    private bool CheckBranchForRedundancy(VertexController currentVertex, int currentPathInterest, int currentPathTime)
+    {
+      return currentVertex.CurrentBestTime > 0
+             && (currentVertex.CurrentBestInterest > currentPathInterest
+                 || currentVertex.CurrentBestInterest == currentPathInterest
+                 && currentVertex.CurrentBestTime < currentPathTime);
+    }
+
+    private bool IsPathBetter(GraphPath path)
+    {
+      return currentBestPath.Interest == 0 ||
+             path.Interest > bestInterest ||
+             path.Interest == bestInterest && path.Time < currentBestPath.Time;
+    }
     #region cosequentially realisation
 
     private void DepthSearch(VertexController currV, GraphPath path, ThreadStateToken token = null)
@@ -587,9 +607,7 @@ namespace Assets.Scripts
       var currentPathInterest = path.Interest;
       var currentPathTime = path.Time;
       //если существует ветвь которая на обратном пути собрала больше интереса или такое же, но быстрее, то текущая ветвь не имеет смысла
-      if (currentVertex.CurrentBestInterest > currentPathInterest
-          || (currentVertex.CurrentBestInterest == currentPathInterest &&
-              currentVertex.CurrentBestTime < currentPathTime))
+      if(CheckBranchForRedundancy(currentVertex, currentPathInterest, currentPathTime))
       {
         return;
       }
@@ -604,14 +622,11 @@ namespace Assets.Scripts
         iterations++;
         lock (bestPathLock)
         {
-          if (currentBestPath.Interest == 0 ||
-              path.Interest > bestInterest ||
-              path.Interest == bestInterest && path.Time < currentBestPath.Time)
+          if (IsPathBetter(path))
           {
             SetBestPath(path);
           }
         }
-
         return;
       }
       //Если есть цикл то нам такое не надо
