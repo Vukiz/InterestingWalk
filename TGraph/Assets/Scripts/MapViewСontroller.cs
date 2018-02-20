@@ -72,7 +72,7 @@ namespace Assets.Scripts
 
     private void OnParallelToggle(bool value)
     {
-      if (content.IsMapEmpty)
+      if (!content.IsMapEmpty)
       {
         findBtn.interactable = true;
       }

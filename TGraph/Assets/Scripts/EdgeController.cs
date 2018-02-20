@@ -16,8 +16,7 @@ namespace Assets.Scripts
       {
         weight = value;
         GetComponentInChildren<TextMesh>().text = value.ToString();
-        GetComponentInChildren<TextMesh>().transform.localScale =
-            new Vector2(GetComponentInChildren<TextMesh>().transform.localScale.x / transform.localScale.x, 2f);
+        GetComponentInChildren<TextMesh>().transform.localScale = new Vector2(GetComponentInChildren<TextMesh>().transform.localScale.x / transform.localScale.x, 2f);
       }
     }
     public EdgeState CurrentEdgeState

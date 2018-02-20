@@ -13,31 +13,21 @@ namespace Assets.Scripts
 {
   class MapContent
   {
-    private int bestInterest;
-    private int maxInterest;
+    private int bestInterest;// the best interest which current alghorithm was able to get
     private int iterations;//iterations on current alghorithm;
 
     private bool updatedPathColoring;
 
-    private const int Size = 10;
-
-    private readonly float spawnRate = 1;
     private readonly int timeRestriction;
-
     private readonly object threadStateLock;
     private readonly object bestPathLock;
     private readonly object coloringLock;
+    private readonly Map map;
 
     private GraphPath currentBestPath; //best path from start to end --- {Vstart, V2, .... , Vend}
-
     private List<ThreadStateToken> stateTokens;
-    private readonly List<GameObject> map;
-    private readonly List<EdgeController> edges;
-    private readonly List<VertexController> vertices;
 
     private readonly Stopwatch sw;
-    private readonly GameObject edgePrefab;
-    private readonly GameObject vertexPrefab;
     
     public string StateTokensCount
     {
@@ -54,33 +44,27 @@ namespace Assets.Scripts
 
     public string BestPathInterest { get { return currentBestPath.Interest.ToString(); } }
 
-    public bool IsMapEmpty { get { return map.Any(); } }
+    public bool IsMapEmpty { get { return map.IsEmpty(); } }
 
     public string SwCurrentTime
     {
       get
       {
-        return (sw != null && sw.Elapsed.TotalSeconds > 0)
-          ? sw.Elapsed.TotalSeconds.ToString(CultureInfo.InvariantCulture)
+        return sw != null && sw.Elapsed.TotalSeconds > 0
+          ? sw.Elapsed.TotalSeconds.ToString("0.000",CultureInfo.InvariantCulture)
           : string.Empty;
       }
     }
 
-    public MapContent(float SpawnRate, int TimeRestriction)
+    public MapContent(float spawnRate, int TimeRestriction)
     {
-      edgePrefab = Resources.Load<GameObject>("Prefabs/Edge");
-      vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
-      edges = new List<EdgeController>();
-      vertices = new List<VertexController>();
-      map = new List<GameObject>();
+      map = new Map(spawnRate);
       sw = new Stopwatch();
       threadStateLock = new object();
       coloringLock = new object();
       bestPathLock = new object();
 
       timeRestriction = TimeRestriction;
-      maxInterest = -1;
-      spawnRate = SpawnRate;
       SetBestPath(new GraphPath());
       lock (threadStateLock)
       {
@@ -96,7 +80,7 @@ namespace Assets.Scripts
       if (sw.IsRunning)
       {
         StopTimer();
-        ResetVertices();
+        map.ResetVertices();
       }
       if (currentBestPath.Interest > 0)
       {
@@ -109,14 +93,6 @@ namespace Assets.Scripts
       }
     }
 
-    private void ResetVertices()
-    {
-      foreach (var vertex in vertices)
-      {
-        vertex.CurrentBestInterest = 0;
-        vertex.CurrentBestTime = 0;
-      }
-    }
 
     /// <summary>
     /// clears map : removes all edges and vertices, clears threads and stops timer. nullifies Bestpath
@@ -125,31 +101,11 @@ namespace Assets.Scripts
     {
       SetBestPath(new GraphPath());
       bestInterest = 0;
-      maxInterest = -1;
-      ClearVertices();
-      ClearEdges();
       map.Clear();
       StopTimer();
       Debug.Log("Cleared map");
     }
 
-    private void ClearVertices()
-    {
-      foreach (VertexController t in vertices)
-      {
-        Object.Destroy(t.gameObject);
-      }
-      vertices.Clear();
-    }
-
-    private void ClearEdges()
-    {
-      foreach (EdgeController t in edges)
-      {
-        Object.Destroy(t.gameObject);
-      }
-      edges.Clear();
-    }
 
     /// <summary>
     /// do not surroind this method with threadStateLock lock
@@ -167,26 +123,20 @@ namespace Assets.Scripts
       Debug.Log("Cleared all threads");
     }
 
-    private void ClearGraphColoring()
-    {
-      foreach (var edge in edges)
-      {
-        edge.CurrentEdgeState = EdgeState.Unused;
-      }
-    }
 
     public void PrintBestPathIfNeeded()
     {
+      if (updatedPathColoring)//not locking here because it doesn't matter if we get wrong value
+      {
+        return;
+      }
+
       lock (coloringLock)
       {
-        if (updatedPathColoring)
-        {
-          return;
-        }
         updatedPathColoring = true;
       }
 
-      ClearGraphColoring();
+      map.ClearColoring();
 
       if (currentBestPath == null || currentBestPath.VerticesCount() == 0)
       {
@@ -201,115 +151,18 @@ namespace Assets.Scripts
       }
     }
 
-    /// <summary>
-    /// finds distances from start vertex to others
-    /// </summary>
-    private void FordBellman()
-    {
-      foreach (var t in vertices)
-      {
-        t.DistanceFromStart = 1000000;
-      }
-      vertices[0].DistanceFromStart = 0;
-      for (var i = 0; i < vertices.Count; i++)
-      {
-        foreach (var edge in edges)
-        {
-          if (edge.Second.DistanceFromStart > edge.First.DistanceFromStart + edge.Weight)
-          {
-            edge.Second.DistanceFromStart = edge.First.DistanceFromStart + edge.Weight;
-          }
-          if (edge.First.DistanceFromStart > edge.Second.DistanceFromStart + edge.Weight)
-          {
-            edge.First.DistanceFromStart = edge.Second.DistanceFromStart + edge.Weight;
-          }
-        }
-      }
-    }
-
     public void OnRandomizeClick()
     {
-      if (edges.Any())
+      if (!map.IsEmpty())
       {
         Clear();
         ClearThreads();
         FinalizeCalculations();
       }
-      RandomizeGraph();
-      FordBellman();
-      foreach (var v in vertices)
-      {
-        v.Depth = vertices.Count;
-      }
-      vertices[0].Depth = 0;
-      SpreadDepth(vertices[0]);
-      maxInterest = vertices.Sum(v => v.Interest);
-      SpreadMeasure();
+      map.RandomizeAndPrepare();
+      
     }
-
-    private void RandomizeGraph()
-    {
-      RandomizeVertices();
-      RandomizeEdges();
-    }
-
-    /// <summary>
-    /// creates edge between two vertices by their position
-    /// </summary>
-    /// <param name="from"></param>
-    /// <param name="to"></param>
-    /// <param name="w"> weight of the edge</param>
-    /// <param name="edgePrefab"></param>
-    /// <param name="parentTransform"></param>
-    private void CreateEdge(VertexController from, VertexController to, int w)
-    {
-      var edge = Object.Instantiate(edgePrefab, GameObject.Find("Edges").transform);
-      edge.GetComponent<EdgeController>().Init(from, to);
-      edge.GetComponent<EdgeController>().Weight = w;
-      edges.Add(edge.GetComponent<EdgeController>());
-    }
-
-    private void RandomizeEdges()
-    {
-      var unlinkedV = new List<GameObject>(map);
-      var path = new List<GameObject> { unlinkedV.First() };
-      unlinkedV.Remove(path.First());
-      while (unlinkedV.Count > 0)
-      {
-        GameObject nextV = unlinkedV[Random.Range(0, unlinkedV.Count)];
-        CreateEdge(path[Random.Range(0, path.Count - 1)].GetComponent<VertexController>(),
-          nextV.GetComponent<VertexController>(), Random.Range(1, 7));
-        path.Add(nextV);
-        unlinkedV.Remove(nextV);
-      }
-    }
-
-    /// <summary>
-    /// filling map with random vertices with random interests
-    /// </summary>
-    private void RandomizeVertices()
-    {
-      CreateVertex(new Vector2(0, 0), "Vertex Start", "S");
-      for (var i = 1; i < Size * 2; i += 2)
-      {
-        for (var j = 1; j < Size * 2; j += 2)
-        {
-          if (Random.value > spawnRate)
-          {
-            CreateVertex(new Vector2(i, j), "Vertex " + vertices.Count);
-          }
-        }
-      }
-    }
-
-    private void CreateVertex(Vector2 startPosition, string name, string childName = null)
-    {
-      GameObject currentVertex = Object.Instantiate(vertexPrefab, GameObject.Find("Vertices").transform);
-      currentVertex.GetComponent<VertexController>().Init(startPosition, name, childName);
-      vertices.Add(currentVertex.GetComponent<VertexController>());
-      map.Add(currentVertex);
-    }
-
+    
     private void StopTimer()
     {
       if (!sw.IsRunning)
@@ -329,70 +182,7 @@ namespace Assets.Scripts
       sw.Reset();
       sw.Start();
     }
-
-    private static void SpreadDepth(VertexController currentVertex)
-    {
-      currentVertex.CurrentState = VertexController.VertexState.Visited;
-      foreach (var v in currentVertex.GetAdjacentVertices())
-      {
-        if (v.Depth > currentVertex.Depth + 1)
-        {
-          v.Depth = currentVertex.Depth + 1;
-        }
-        if (v.CurrentState == VertexController.VertexState.Unvisited)
-        {
-          SpreadDepth(v);
-        }
-      }
-    }
-
-    /// <summary>
-    /// calculates measure as Intererst/Time
-    /// </summary>
-    private float HeuristicMeasure(float interest, float time)
-    {
-      return interest / time;
-    }
-
-    private void SpreadMeasure()
-    {
-      foreach (var vertex in vertices)
-      {
-        vertex.CurrentState = VertexController.VertexState.Unvisited;
-      }
-      var maxDepth = vertices.Max(v => v.Depth);
-      for (var i = 1; i < maxDepth; i++) //вверх по глубине
-      {
-        foreach (var currentVertex in vertices.Where(v => v.Depth == i))
-        {
-          foreach (var equalVertex in currentVertex.GetAdjacentVertices()
-            .Where(vertex => vertex.Depth == currentVertex.Depth))
-          {
-            float currentMeasure;
-            var edgeBetweenVertices = currentVertex.GetConnectingEdge(equalVertex);
-            if (equalVertex.BestMeasure < currentVertex.BestMeasure)
-            {
-              currentMeasure = HeuristicMeasure(currentVertex.Interest, edgeBetweenVertices.Weight) +
-                               equalVertex.BestMeasure;
-              if (currentMeasure > currentVertex.BestMeasure)
-              {
-                currentVertex.BestMeasure = currentMeasure;
-              }
-            }
-            else
-            {
-              currentMeasure = HeuristicMeasure(equalVertex.Interest, edgeBetweenVertices.Weight) +
-                               currentVertex.BestMeasure;
-              if (currentMeasure > equalVertex.BestMeasure)
-              {
-                equalVertex.BestMeasure = currentMeasure;
-              }
-            }
-          }
-        }
-      }
-    }
-
+    
     private void SetBestPath(GraphPath newPath)
     {
       currentBestPath = newPath;
@@ -401,7 +191,7 @@ namespace Assets.Scripts
       {
         updatedPathColoring = false;
       }
-      if (bestInterest == maxInterest)
+      if (bestInterest == map.MaxInterest)
       {
         ClearThreads();
         FinalizeCalculations();
@@ -452,7 +242,7 @@ namespace Assets.Scripts
       SetBestPath(new GraphPath());
       StartTimer();
       // запустить рекурсионный поиск из каждой вершины смежной со стартовой
-      var currentVertex = vertices[0];
+      var currentVertex = map.StartVertex;
       var startPath = new GraphPath().Add(currentVertex);
       if (!paralleling)
       {
@@ -528,7 +318,7 @@ namespace Assets.Scripts
       //так как мы уже должны возвращаться мы не будем дальше искать если вернулись в начало - 
       //если бы была возможность набрать больше интереса 
       //, то такой путь найдется в другом случае - с другой последовательностью вершин
-      if (currentVertex == vertices[0])
+      if (currentVertex == map.StartVertex)
       {
         iterations++;
         lock (bestPathLock)
@@ -574,6 +364,7 @@ namespace Assets.Scripts
              path.Interest > bestInterest ||
              path.Interest == bestInterest && path.Time < currentBestPath.Time;
     }
+
     #region cosequentially realisation
 
     private void DepthSearch(VertexController currV, GraphPath path, ThreadStateToken token = null)
@@ -617,7 +408,7 @@ namespace Assets.Scripts
       //так как мы уже должны возвращаться мы не будем дальше искать если вернулись в начало - 
       //если бы была возможность набрать больше интереса 
       //, то такой путь найдется в другом случае - с другой последовательностью вершин
-      if (currentVertex == vertices[0])
+      if (currentVertex == map.StartVertex)
       {
         iterations++;
         lock (bestPathLock)

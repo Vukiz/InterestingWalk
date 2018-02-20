@@ -23,9 +23,9 @@ namespace Assets.Scripts
     public object Locker = new object();
     public float BestMeasure { get; set; }
 
-    public void Init(Vector2 startPosition, string Name, string childName = null)
+    public void Init(int i, int j, string Name, string childName = null)
     {
-      gameObject.transform.position = startPosition;
+      gameObject.transform.position = new Vector2(i, j);
       gameObject.name = Name;
       RandomizeInterest();
       if (!string.IsNullOrEmpty(childName))
