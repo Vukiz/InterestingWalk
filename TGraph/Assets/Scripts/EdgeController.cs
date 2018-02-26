@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using Assets.Scripts.enums;
+using UnityEngine;
 
 namespace Assets.Scripts
 {
@@ -8,13 +9,27 @@ namespace Assets.Scripts
     public VertexController First;
     public VertexController Second;
 
-    private int weight;
+    public string FirstName
+    {
+      get { return Edge.FirstVertexName; }
+      set { Edge.FirstVertexName = value; }
+    }
+    public string SecondName
+    {
+      get { return Edge.SecondVertexName; }
+      set { Edge.SecondVertexName = value; }
+    }
+    public _Edge Edge;
+
     public int Weight
     {
-      get { return weight; }
+      get
+      {
+        return  Edge.Weight;
+      }
       set
       {
-        weight = value;
+        Edge.Weight = value;
         GetComponentInChildren<TextMesh>().text = value.ToString();
         GetComponentInChildren<TextMesh>().transform.localScale = new Vector2(GetComponentInChildren<TextMesh>().transform.localScale.x / transform.localScale.x, 2f);
       }
@@ -34,6 +49,8 @@ namespace Assets.Scripts
     {
       First = f;
       Second = s;
+      FirstName = f.Name;
+      SecondName = s.Name;
       CurrentEdgeState = EdgeState.Unused;
       var fPos = f.transform.position;
       var sPos = s.transform.position;

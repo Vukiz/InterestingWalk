@@ -1,52 +1,91 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
+using Assets.Scripts.enums;
 using UnityEngine;
 
 namespace Assets.Scripts
 {
   public class VertexController : MonoBehaviour
   {
-    public int Interest;
     public List<EdgeController> ConjoinedEdges;
     public VertexState CurrentState;
-    public int DistanceFromStart = 0;
-    public int Depth;
-
-    public enum VertexState
+    public _Vertex Vertex;
+    public int Interest
     {
-      Unvisited,
-      Visited
-    }
-    
-    public int CurrentBestInterest = 0;
-    public int CurrentBestTime = 0;
-    public object Locker = new object();
-    public float BestMeasure { get; set; }
-
-    public void Init(int i, int j, string Name, string childName = null)
-    {
-      gameObject.transform.position = new Vector2(i, j);
-      gameObject.name = Name;
-      RandomizeInterest();
-      if (!string.IsNullOrEmpty(childName))
+      get { return Vertex.Interest; }
+      set
       {
-        GetComponentInChildren<TextMesh>().text = childName;
+        Vertex.Interest = value; 
+        SetChildText(value.ToString());
       }
     }
-    public void RandomizeInterest()
+
+    public int DistanceFromStart;
+    public int CurrentBestInterest;
+    public int CurrentBestTime;
+    public int Depth;
+
+    public string Name
     {
-      Interest = Random.Range(1, 10);
-      GetComponentInChildren<TextMesh>().text = Interest.ToString();
+      get { return Vertex.Name; }
+      set
+      {
+        Vertex.Name = value;
+        gameObject.name = value;
+      }
     }
 
-    public EdgeController GetConnectingEdge(VertexController connectedVertex)
+    private string ChildText
     {
-      return ConjoinedEdges.Find(e => e.IsConnecting(this, connectedVertex));
+      get { return Vertex.ChildText; }
+      set
+      {
+        Vertex.ChildText = value;
+      }
     }
 
-    public List<VertexController> GetAdjacentVertices()
+    private Vector2 position
     {
-      return ConjoinedEdges.Select(edge => (edge.First != this) ? edge.First : edge.Second).ToList();
+      get
+      {
+        return new Vector2(Vertex.x,Vertex.y);
+      }
+      set
+      {
+        Vertex.x = value.x;
+        Vertex.y = value.y;
+        gameObject.transform.position = value;
+      }
+    }
+
+    public float BestMeasure;
+    public object Locker = new object();
+
+    public void Init(_Vertex initialVertex)
+    {
+      Vertex = initialVertex;
+      gameObject.transform.position = position;
+      gameObject.name = Name;
+      if (!string.IsNullOrEmpty(ChildText))
+      {
+        SetChildText(ChildText);
+      }
+    }
+
+    public void Init(Vector2 initPosition, int interest, string initName, string childText = null)
+    {
+      position = initPosition;
+      Name = initName;
+      Interest = interest;
+      if (!string.IsNullOrEmpty(childText))
+      {
+        SetChildText(childText);
+      }
+    }
+
+    private void SetChildText(string text)
+    {
+      ChildText = text;
+      GetComponentInChildren<TextMesh>().text = text;
     }
   }
 }

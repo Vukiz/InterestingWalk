@@ -1,30 +1,46 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using Assets.Scripts.enums;
 using UnityEngine;
 using Object = UnityEngine.Object;
+using Random = UnityEngine.Random;
 
 namespace Assets.Scripts
 {
-  class Map
+  class Map 
   {
     public int MaxInterest;
-
-    private readonly float spawnRate = 1;
-    private const int Size = 10;
-
     private readonly GameObject vertexPrefab;
     private readonly GameObject edgePrefab;
-    private readonly List<EdgeController> edges;
-    private readonly List<VertexController> vertices;
+    public const int Size = 10;
 
-    public VertexController StartVertex { get { return vertices[0]; } }
-    public Map(float SpawnRate)
+    private _Map map;
+
+    public float SpawnRate
     {
-      spawnRate = SpawnRate;
+      get { return map.SpawnRate; }
+      set { map.SpawnRate = value; }
+    }
+
+    public List<VertexController> Vertices
+    {
+      get { return map.Vertices; }
+      set { map.Vertices = value; }
+    }
+    public List<EdgeController> Edges
+    {
+      get { return map.Edges; }
+      set { map.Edges = value; }
+    }
+
+    public VertexController StartVertex { get { return Vertices[0]; } }
+    public Map(float spawnRate)
+    {
+      SpawnRate = spawnRate;
       MaxInterest = -1;
 
-      vertices = new List<VertexController>();
-      edges = new List<EdgeController>();
+      Vertices = new List<VertexController>();
+      Edges = new List<EdgeController>();
       edgePrefab = Resources.Load<GameObject>("Prefabs/Edge");
       vertexPrefab = Resources.Load<GameObject>("Prefabs/Vertex");
     }
@@ -34,14 +50,14 @@ namespace Assets.Scripts
     /// </summary>
     private void FordBellman()
     {
-      foreach (var t in vertices)
+      foreach (var t in Vertices)
       {
         t.DistanceFromStart = 1000000;
       }
-      vertices[0].DistanceFromStart = 0;
-      for (var i = 0; i < vertices.Count; i++)
+      Vertices[0].DistanceFromStart = 0;
+      for (var i = 0; i < Vertices.Count; i++)
       {
-        foreach (var edge in edges)
+        foreach (var edge in Edges)
         {
           if (edge.Second.DistanceFromStart > edge.First.DistanceFromStart + edge.Weight)
           {
@@ -57,16 +73,24 @@ namespace Assets.Scripts
 
     public bool IsEmpty()
     {
-      return !vertices.Any();
+      return !Vertices.Any();
     }
 
-    public void RandomizeAndPrepare()
+    public void Randomize()
     {
       RandomizeVertices();
       RandomizeEdges();
+    }
+
+    public void Prepare()
+    {
       FordBellman();
-      SpreadDepth(vertices[0]);
-      MaxInterest = vertices.Sum(v => v.Interest);
+      foreach (var v in Vertices)
+      {
+        v.Depth = Vertices.Count;
+      }
+      SpreadDepth(Vertices[0]);
+      MaxInterest = Vertices.Sum(v => v.Interest);
       SpreadMeasure();
     }
 
@@ -75,44 +99,24 @@ namespace Assets.Scripts
     /// </summary>
     private void RandomizeVertices()
     {
-      CreateVertex(0, 0, "Vertex Start", "S");
-      StartVertex.Interest = 0;
+      CreateVertex(new Vector2(0, 0), 0, "Vertex Start", "S");
 
+      //* 2 cause map size is too small if * 1
       for (var i = 1; i < Size * 2; i += 2)
       {
         for (var j = 1; j < Size * 2; j += 2)
         {
-          if (Random.value > spawnRate)
+          if (Random.value > SpawnRate)
           {
-            CreateVertex(i, j, "Vertex " + vertices.Count);
+            CreateVertex(new Vector2(i, j), RandomizeInterest(), "Vertex " + Vertices.Count);
           }
         }
       }
     }
 
-    private void CreateVertex(int i, int j, string name, string childName = null)
-    {
-      GameObject vertexGameObject = Object.Instantiate(vertexPrefab, GameObject.Find("Vertices").transform);
-      VertexController vertexController = vertexGameObject.GetComponent<VertexController>();
-      vertexController.Init(i, j, name, childName);
-      vertices.Add(vertexController);
-    }
-
-    /// <summary>
-    /// creates edge between two vertices by their position
-    /// </summary>
-    private void CreateEdge(VertexController from, VertexController to, int w)
-    {
-      GameObject edgeGameObject = Object.Instantiate(edgePrefab, GameObject.Find("Edges").transform);
-      EdgeController edge = edgeGameObject.GetComponent<EdgeController>();
-      edge.Init(from, to);
-      edge.Weight = w;
-      edges.Add(edge);
-    }
-
     private void RandomizeEdges()
     {
-      List<VertexController> unlinkedV = new List<VertexController>(vertices);
+      List<VertexController> unlinkedV = new List<VertexController>(Vertices);
       unlinkedV.Remove(StartVertex);
 
       List<VertexController> path = new List<VertexController> { StartVertex };
@@ -126,21 +130,41 @@ namespace Assets.Scripts
       }
     }
 
+    private void CreateVertex(Vector2 initPos, int interest, string name, string childName = null)
+    {
+      GameObject vertexGameObject = Object.Instantiate(vertexPrefab, GameObject.Find("Vertices").transform);
+      VertexController vertexController = vertexGameObject.GetComponent<VertexController>();
+      vertexController.Init(initPos, interest, name, childName);
+      Vertices.Add(vertexController);
+    }
+
+    public int RandomizeInterest()
+    {
+      return Random.Range(1, 10);
+    }
+    /// <summary>
+    /// creates edge between two vertices by their position
+    /// </summary>
+    private void CreateEdge(VertexController from, VertexController to, int w)
+    {
+      GameObject edgeGameObject = Object.Instantiate(edgePrefab, GameObject.Find("Edges").transform);
+      EdgeController edge = edgeGameObject.GetComponent<EdgeController>();
+      edge.Init(from, to);
+      edge.Weight = w;
+      Edges.Add(edge);
+    }
+    
     private void SpreadDepth(VertexController currentVertex)
     {
-      foreach (var v in vertices)
-      {
-        v.Depth = vertices.Count;
-      }
-      vertices[0].Depth = 0;
-      currentVertex.CurrentState = VertexController.VertexState.Visited;
+      Vertices[0].Depth = 0;
+      currentVertex.CurrentState = VertexState.Visited;
       foreach (var v in currentVertex.GetAdjacentVertices())
       {
         if (v.Depth > currentVertex.Depth + 1)
         {
           v.Depth = currentVertex.Depth + 1;
         }
-        if (v.CurrentState == VertexController.VertexState.Unvisited)
+        if (v.CurrentState == VertexState.Unvisited)
         {
           SpreadDepth(v);
         }
@@ -152,7 +176,7 @@ namespace Assets.Scripts
     /// </summary>
     public void ResetVertices()
     {
-      foreach (var vertex in vertices)
+      foreach (var vertex in Vertices)
       {
         vertex.CurrentBestInterest = 0;
         vertex.CurrentBestTime = 0;
@@ -168,29 +192,30 @@ namespace Assets.Scripts
 
     private void ClearVertices()
     {
-      foreach (VertexController t in vertices)
+      foreach (VertexController t in Vertices)
       {
         Object.Destroy(t.gameObject);
       }
-      vertices.Clear();
+      Vertices.Clear();
     }
 
     private void ClearEdges()
     {
-      foreach (EdgeController t in edges)
+      foreach (EdgeController t in Edges)
       {
         Object.Destroy(t.gameObject);
       }
-      edges.Clear();
+      Edges.Clear();
     }
 
     public void ClearColoring()
     {
-      foreach (var edge in edges)
+      foreach (var edge in Edges)
       {
         edge.CurrentEdgeState = EdgeState.Unused;
       }
     }
+
     /// <summary>
     /// calculates measure as Intererst/Time
     /// </summary>
@@ -201,14 +226,14 @@ namespace Assets.Scripts
 
     private void SpreadMeasure()
     {
-      foreach (var vertex in vertices)
+      foreach (var vertex in Vertices)
       {
-        vertex.CurrentState = VertexController.VertexState.Unvisited;
+        vertex.CurrentState = VertexState.Unvisited;
       }
-      var maxDepth = vertices.Max(v => v.Depth);
+      var maxDepth = Vertices.Max(v => v.Depth);
       for (var i = 1; i < maxDepth; i++) //вверх по глубине
       {
-        foreach (var currentVertex in vertices.Where(v => v.Depth == i))
+        foreach (var currentVertex in Vertices.Where(v => v.Depth == i))
         {
           foreach (var equalVertex in currentVertex.GetAdjacentVertices()
             .Where(vertex => vertex.Depth == currentVertex.Depth))
@@ -236,6 +261,38 @@ namespace Assets.Scripts
           }
         }
       }
+    }
+
+    public void InitFromJson(MapWrapper mapWrapper)
+    {
+      SpawnRate = mapWrapper.SpawnRate;
+      Clear();
+      InitVertices(mapWrapper.Vertices);
+      InitEdges(mapWrapper.Edges);
+      Prepare();
+    }
+
+    private void InitEdges(_Edge[] mapWrapperEdges)
+    {
+      foreach (var edgeStruct in mapWrapperEdges)
+      {
+        var first = Vertices.Find(v => v.Name == edgeStruct.FirstVertexName);
+        var second = Vertices.Find(v => v.Name == edgeStruct.SecondVertexName);
+        CreateEdge(first, second, edgeStruct.Weight);
+      }
+    }
+
+    private void InitVertices(_Vertex[] mapWrapperVertices)
+    {
+      foreach (_Vertex vertexStruct in mapWrapperVertices)
+      {
+        CreateVertex(vertexStruct);
+      }
+    }
+
+    private void CreateVertex(_Vertex vertexStruct)
+    {
+      CreateVertex(new Vector2(vertexStruct.x, vertexStruct.y), vertexStruct.Interest, vertexStruct.Name, vertexStruct.ChildText);
     }
   }
 }

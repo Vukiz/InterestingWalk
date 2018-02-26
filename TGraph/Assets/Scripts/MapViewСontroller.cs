@@ -1,7 +1,6 @@
-﻿using System.Linq;
+﻿using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
-using Debug = UnityEngine.Debug;
 
 namespace Assets.Scripts
 {
@@ -12,6 +11,8 @@ namespace Assets.Scripts
  
     private Button findBtn;
     private Button randomizeBtn;
+    private Button loadButton;
+    private Button saveButton;
     private Text threadsStatusText;
     private Text pathInterestText;
     private Text pathTimeText;
@@ -41,6 +42,8 @@ namespace Assets.Scripts
       threadsStatusText = GameObject.Find("ThreadsStatus").GetComponent<Text>();
       findBtn = GameObject.Find("FindBtn").GetComponent<Button>();
       randomizeBtn = GameObject.Find("RandomizeBtn").GetComponent<Button>();
+      saveButton = GameObject.Find("SaveBtn").GetComponent<Button>();
+      loadButton = GameObject.Find("LoadBtn").GetComponent<Button>();
       pathTimeText = GameObject.Find("PathTime").GetComponent<Text>();
       timerText = GameObject.Find("TimerText").GetComponent<Text>();
       pathInterestText = GameObject.Find("PathInterest").GetComponent<Text>();
@@ -49,6 +52,8 @@ namespace Assets.Scripts
       parallelToggle.onValueChanged.AddListener(OnParallelToggle);
       findBtn.onClick.AddListener(OnFindBtnClick);
       randomizeBtn.onClick.AddListener(OnRandomizeButtonClick);
+      saveButton.onClick.AddListener(OnSaveButtonClick);
+      loadButton.onClick.AddListener(OnLoadButtonClick);
 
       InvokeRepeating("UpdatePathTime", 0.2f, 1f);
       InvokeRepeating("UpdatePathInterest", 0.2f, 1f);
@@ -57,11 +62,27 @@ namespace Assets.Scripts
       OnParallelToggle(paralleling); //true by default 
 
       findBtn.interactable = false;
+      saveButton.interactable = false;
     }
+
+    private void OnLoadButtonClick()
+    {
+      var path =  EditorUtility.OpenFilePanel("Choose graph to load", "", ".map");
+      GraphExporter.LoadGraph(content, path);
+      findBtn.interactable = true;
+    }
+
+    private void OnSaveButtonClick()
+    {
+      GraphExporter.SaveGraph(content.Map);
+      saveButton.interactable = false;
+    }
+
     public void OnRandomizeButtonClick()
     {
       findBtn.interactable = true;
       content.OnRandomizeClick();
+      saveButton.interactable = true;
     }
 
     public void OnFindBtnClick()

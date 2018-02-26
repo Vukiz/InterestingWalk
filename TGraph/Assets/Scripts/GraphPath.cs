@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
+using Assets.Scripts.enums;
 
 namespace Assets.Scripts
 {
@@ -81,17 +80,6 @@ namespace Assets.Scripts
     public int CountInterest()
     {
       return vertices.Distinct().Sum(v => v.Interest);
-    }
-    private int CountTime(List<VertexController> path)
-    {
-      var time = 0;
-      if (path.Count < 2) return 0;
-      for (var i = 0; i < path.Count - 1; i++)
-      {
-        var curEdge = path[i].GetConnectingEdge(path[i + 1]);
-        time += curEdge.Weight;
-      }
-      return time;
     }
 
     public void ColorGraph()

@@ -81,14 +81,20 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\EdgeController.cs" />
-    <Compile Include="Assets\Scripts\EdgeState.cs" />
+    <Compile Include="Assets\Scripts\enums\EdgeState.cs" />
     <Compile Include="Assets\Scripts\GraphExporter.cs" />
     <Compile Include="Assets\Scripts\GraphPath.cs" />
     <Compile Include="Assets\Scripts\Map.cs" />
     <Compile Include="Assets\Scripts\MapContent.cs" />
+    <Compile Include="Assets\Scripts\_Map.cs" />
     <Compile Include="Assets\Scripts\MapViewСontroller.cs" />
+    <Compile Include="Assets\Scripts\MapWrapper.cs" />
     <Compile Include="Assets\Scripts\ThreadStateToken.cs" />
+    <Compile Include="Assets\Scripts\_Vertex.cs" />
     <Compile Include="Assets\Scripts\VertexController.cs" />
+    <Compile Include="Assets\Scripts\VertexExtension.cs" />
+    <Compile Include="Assets\Scripts\enums\VertexState.cs" />
+    <Compile Include="Assets\Scripts\_Edge.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="GenerateTargetFrameworkMonikerAttribute" />
