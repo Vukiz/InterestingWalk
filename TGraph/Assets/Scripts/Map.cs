@@ -7,7 +7,7 @@ using Random = UnityEngine.Random;
 
 namespace Assets.Scripts
 {
-  class Map 
+  internal class Map 
   {
     public int MaxInterest;
     private readonly GameObject vertexPrefab;
@@ -33,7 +33,8 @@ namespace Assets.Scripts
       set { map.Edges = value; }
     }
 
-    public VertexController StartVertex { get { return Vertices[0]; } }
+    public VertexController StartVertex => Vertices[0];
+
     public Map(float spawnRate)
     {
       SpawnRate = spawnRate;
@@ -272,7 +273,7 @@ namespace Assets.Scripts
       Prepare();
     }
 
-    private void InitEdges(_Edge[] mapWrapperEdges)
+    private void InitEdges(IEnumerable<_Edge> mapWrapperEdges)
     {
       foreach (var edgeStruct in mapWrapperEdges)
       {
@@ -282,7 +283,7 @@ namespace Assets.Scripts
       }
     }
 
-    private void InitVertices(_Vertex[] mapWrapperVertices)
+    private void InitVertices(IEnumerable<_Vertex> mapWrapperVertices)
     {
       foreach (_Vertex vertexStruct in mapWrapperVertices)
       {

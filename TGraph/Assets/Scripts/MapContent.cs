@@ -26,26 +26,17 @@ namespace Assets.Scripts
 
     private readonly Stopwatch sw;
 
-    public string StateTokensCount
-    {
-      get { return stateTokens.Count.ToString(); }
-    }
+    public int ThreadsСount = 0;
 
-    public string BestPathTime { get { return currentBestPath.Time.ToString(); } }
+    public string BestPathTime => currentBestPath.Time.ToString();
 
-    public string BestPathInterest { get { return currentBestPath.Interest.ToString(); } }
+    public string BestPathInterest => currentBestPath.Interest.ToString();
 
-    public bool IsMapEmpty { get { return map.IsEmpty(); } }
+    public bool IsMapEmpty => map.IsEmpty();
 
-    public string SwCurrentTime
-    {
-      get
-      {
-        return sw != null && sw.Elapsed.TotalSeconds > 0
-          ? sw.Elapsed.TotalSeconds.ToString("0.000",CultureInfo.InvariantCulture)
-          : string.Empty;
-      }
-    }
+    public string SwCurrentTime => sw != null && sw.Elapsed.TotalSeconds > 0
+      ? sw.Elapsed.TotalSeconds.ToString("0.000",CultureInfo.InvariantCulture)
+      : string.Empty;
 
     public Map Map
     {
@@ -109,7 +100,6 @@ namespace Assets.Scripts
         {
           token.IsCancelled = true;
         }
-        stateTokens = new List<ThreadStateToken>();
       }
       Debug.Log("Cleared all threads");
     }
@@ -203,12 +193,18 @@ namespace Assets.Scripts
         ThreadStateToken stoken = (ThreadStateToken)s;
         try
         {
+          lock (threadStateLock)
+          {
+            ThreadsСount++;
+          }
           action.Invoke(startV, startPath, stoken);
+          
         }
         finally
         {
           lock (threadStateLock)
           {
+            ThreadsСount--;
             if (stateTokens.Contains(stoken))
             {
               stateTokens.Remove(stoken);
@@ -236,7 +232,12 @@ namespace Assets.Scripts
     {
       StopTimerAndOutputResult();
       ClearThreads();
+      while (stateTokens.Any())
+      {
+        Thread.Sleep(100);
+      }
       SetBestPath(new GraphPath());
+      ThreadsСount = 0;
       map.ResetVertices();
       StartTimer();
       // запустить рекурсионный поиск из каждой вершины смежной со стартовой
@@ -375,20 +376,21 @@ namespace Assets.Scripts
 
     private void DepthSearch(VertexController currV, GraphPath path, ThreadStateToken token = null)
     {
-      if (AllNeighboursUsed(currV, path))
+      if (AllNeighboursUsed(currV, path)) // Если все смежные использованы значит мы ничего не пропустили и нужно возвращаться
       {
         BackPath(currV, path);
         return;
       }
+
       bool backPathNeeded = false; //нужно ли из этой вершины вернуться в начало
       foreach (var nextV in currV.GetAdjacentVertices())
       {
-        if (BackPathNeeded(currV, path, nextV))
+        if (BackPathNeeded(currV, path, nextV)) // Если нужно вернуться назад то ставим флаг и идем дальше
         {
           backPathNeeded = true;
           continue;
         }
-        DepthSearch(nextV, new GraphPath(path).Add(nextV));
+        DepthSearch(nextV, new GraphPath(path).Add(nextV)); // То что из этой вершины нужно вернуться
       }
       if (backPathNeeded)
       {
