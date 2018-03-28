@@ -100,7 +100,7 @@ namespace Assets.Scripts
     /// </summary>
     private void RandomizeVertices()
     {
-      CreateVertex(new Vector2(0, 0), 0, "Vertex Start", "S");
+      CreateVertex(new Vector2(0, 0), 0, "Start", "S");
 
       //* 2 cause map size is too small if * 1
       for (var i = 1; i < Size * 2; i += 2)
@@ -109,7 +109,7 @@ namespace Assets.Scripts
         {
           if (Random.value > SpawnRate)
           {
-            CreateVertex(new Vector2(i, j), RandomizeInterest(), "Vertex " + Vertices.Count);
+            CreateVertex(new Vector2(i, j), RandomizeInterest(), Vertices.Count.ToString());
           }
         }
       }
@@ -231,20 +231,20 @@ namespace Assets.Scripts
       {
         vertex.CurrentState = VertexState.Unvisited;
       }
-      var maxDepth = Vertices.Max(v => v.Depth);
-      for (var i = 1; i < maxDepth; i++) //вверх по глубине
+      int maxDepth = Vertices.Max(v => v.Depth);
+
+      for (var i = 0; i <= maxDepth; i++) //вверх по глубине
       {
-        foreach (var currentVertex in Vertices.Where(v => v.Depth == i))
+        foreach (var currentVertex in Vertices.Where(v => v.Depth == i)) // по каждой вершине с текущей глубиной распространяем наилучшую меру
         {
-          foreach (var equalVertex in currentVertex.GetAdjacentVertices()
+          foreach (var equalVertex in currentVertex.GetAdjacentVertices()// проверяем не будет ли лучшей меры от смежных вершин не глубже текущей 
             .Where(vertex => vertex.Depth == currentVertex.Depth))
           {
             float currentMeasure;
             var edgeBetweenVertices = currentVertex.GetConnectingEdge(equalVertex);
             if (equalVertex.BestMeasure < currentVertex.BestMeasure)
             {
-              currentMeasure = HeuristicMeasure(currentVertex.Interest, edgeBetweenVertices.Weight) +
-                               equalVertex.BestMeasure;
+              currentMeasure = HeuristicMeasure(currentVertex.Interest, edgeBetweenVertices.Weight) + equalVertex.BestMeasure;
               if (currentMeasure > currentVertex.BestMeasure)
               {
                 currentVertex.BestMeasure = currentMeasure;
@@ -252,12 +252,21 @@ namespace Assets.Scripts
             }
             else
             {
-              currentMeasure = HeuristicMeasure(equalVertex.Interest, edgeBetweenVertices.Weight) +
-                               currentVertex.BestMeasure;
+              currentMeasure = HeuristicMeasure(equalVertex.Interest, edgeBetweenVertices.Weight) + currentVertex.BestMeasure;
               if (currentMeasure > equalVertex.BestMeasure)
               {
                 equalVertex.BestMeasure = currentMeasure;
               }
+            }
+          }
+          foreach (var deeperVertex in currentVertex.GetAdjacentVertices()// проталкиваем меру из текущей вершины вниз по глубине
+            .Where(vertex => vertex.Depth > currentVertex.Depth))
+          {
+            var edgeToDeeperVertex = currentVertex.GetConnectingEdge(deeperVertex);
+            var measureFromCurrentVertex = HeuristicMeasure(deeperVertex.Interest, edgeToDeeperVertex.Weight) + currentVertex.BestMeasure;
+            if (measureFromCurrentVertex > deeperVertex.BestMeasure)
+            {
+              deeperVertex.BestMeasure = measureFromCurrentVertex;
             }
           }
         }
