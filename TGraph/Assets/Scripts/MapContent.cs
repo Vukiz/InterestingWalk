@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
+using Assets.Scripts.enums;
 using Debug = UnityEngine.Debug;
 
 namespace Assets.Scripts
@@ -69,7 +70,7 @@ namespace Assets.Scripts
       }
       if (currentBestPath.Interest > 0)
       {
-        Debug.Log("Found path with " + currentBestPath.VerticesCount() + " vertices and " + currentBestPath.Interest + " interest");
+        Debug.Log("Found path with " + currentBestPath.VerticesCount + " vertices and " + currentBestPath.Interest + " interest");
       }
       if (iterations > 0)
       {
@@ -118,7 +119,7 @@ namespace Assets.Scripts
 
       map.ClearColoring();
 
-      if (currentBestPath == null || currentBestPath.VerticesCount() == 0)
+      if (currentBestPath == null || currentBestPath.VerticesCount == 0)
       {
         return;
       }
@@ -198,7 +199,11 @@ namespace Assets.Scripts
             ThreadsСount++;
           }
           action.Invoke(startV, startPath, stoken);
-          
+
+        }
+        catch (Exception e)
+        {
+          Debug.Log(e.Message);
         }
         finally
         {
@@ -291,9 +296,16 @@ namespace Assets.Scripts
     private void ParallelDepthSearch(VertexController currV, GraphPath path, ThreadStateToken token)
     {
       //если мы посетили все вершины, то дальше нет смысла искать и нужно вернуться в конечную точку
-      if (AllNeighboursUsed(currV, path))
+
+      if (AllNeighboursUsed(currV, path)) // Если все смежные использованы значит нужно вернуться ближе к началу
       {
-        ParallelBackPath(currV, path, token);
+        if (currV == map.StartVertex) // если больше некуда идти то закончить
+        {
+          ParallelBackPath(currV, path, token);
+          return;
+        }
+        var nextV = currV.GetAdjacentVertices().OrderBy(v => v.DistanceFromStart).FirstOrDefault();//возвращаться назад, но не заканчивать поиск
+        ParallelDepthSearch(nextV, path.Add(nextV), token);
         return;
       }
       bool backPathNeeded = false; //нужно ли из этой вершины вернуться в начало
@@ -376,15 +388,22 @@ namespace Assets.Scripts
 
     private void DepthSearch(VertexController currV, GraphPath path, ThreadStateToken token = null)
     {
-      if (AllNeighboursUsed(currV, path)) // Если все смежные использованы значит мы ничего не пропустили и нужно возвращаться
+      if (AllNeighboursUsed(currV, path)) // Если все смежные использованы значит нужно вернуться ближе к началу
       {
-        BackPath(currV, path);
+        if (currV == map.StartVertex) // если больше некуда идти то закончить
+        {
+          BackPath(currV, path);
+          return;
+        }
+        var nextV = currV.GetAdjacentVertices().OrderBy(v => v.DistanceFromStart).FirstOrDefault();//возвращаться назад, но не заканчивать поиск
+        DepthSearch(nextV, path.Add(nextV));
         return;
       }
 
       bool backPathNeeded = false; //нужно ли из этой вершины вернуться в начало
-      foreach (var nextV in currV.GetAdjacentVertices())
+      foreach (var nextV in currV.GetAdjacentVertices())//.Where(v => !path.Contains(v)))// проверяем только те вершины в которых еще не были
       {
+        //Мы ставим флаг о необходимости вернуться назад если следующая вершина нарушит наши ограничения ( время ) или получим цикл
         if (BackPathNeeded(currV, path, nextV)) // Если нужно вернуться назад то ставим флаг и идем дальше
         {
           backPathNeeded = true;

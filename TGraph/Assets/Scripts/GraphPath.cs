@@ -114,9 +114,6 @@ namespace Assets.Scripts
       return edgesCount[newEdgeIndex] > 1;
     }
 
-    public int VerticesCount()
-    {
-      return vertices.Count;
-    }
+    public int VerticesCount => vertices.Count;
   }
 }
