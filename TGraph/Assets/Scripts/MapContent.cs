@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
-using Assets.Scripts.enums;
 using Debug = UnityEngine.Debug;
 
 namespace Assets.Scripts
@@ -15,15 +14,25 @@ namespace Assets.Scripts
     private int iterations;//iterations on current alghorithm;
 
     private bool updatedPathColoring;
+    private int timeRestriction;
 
-    private readonly int timeRestriction;
+    public int TimeRestriction
+    {
+      get { return timeRestriction; }
+      set
+      {
+        timeRestriction = value;
+        Map?.HideUnreachableVertices(value);
+      }
+    }
+
     private readonly object threadStateLock;
     private readonly object bestPathLock;
     private readonly object coloringLock;
     private Map map;
 
     private GraphPath currentBestPath; //best path from start to end --- {Vstart, V2, .... , Vend}
-    private List<ThreadStateToken> stateTokens;
+    private readonly List<ThreadStateToken> stateTokens;
 
     private readonly Stopwatch sw;
 
@@ -33,7 +42,7 @@ namespace Assets.Scripts
 
     public string BestPathInterest => currentBestPath.Interest.ToString();
 
-    public bool IsMapEmpty => map.IsEmpty();
+    public bool IsMapEmpty => Map.IsEmpty();
 
     public string SwCurrentTime => sw != null && sw.Elapsed.TotalSeconds > 0
       ? sw.Elapsed.TotalSeconds.ToString("0.000",CultureInfo.InvariantCulture)
@@ -45,15 +54,15 @@ namespace Assets.Scripts
       set { map = value; }
     }
 
-    public MapContent(float spawnRate, int TimeRestriction)
+    public MapContent(float spawnRate, int Restriction)
     {
-      map = new Map(spawnRate);
+      Map = new Map(spawnRate);
       sw = new Stopwatch();
       threadStateLock = new object();
       coloringLock = new object();
       bestPathLock = new object();
 
-      timeRestriction = TimeRestriction;
+      TimeRestriction = Restriction;
       SetBestPath(new GraphPath());
       stateTokens = new List<ThreadStateToken>();
     }
@@ -86,7 +95,7 @@ namespace Assets.Scripts
     {
       SetBestPath(new GraphPath());
       bestInterest = 0;
-      map.Clear();
+      Map.Clear();
       Debug.Log("Cleared map");
     }
 
@@ -117,7 +126,7 @@ namespace Assets.Scripts
         updatedPathColoring = true;
       }
 
-      map.ClearColoring();
+      Map.ClearColoring();
 
       if (currentBestPath == null || currentBestPath.VerticesCount == 0)
       {
@@ -132,14 +141,14 @@ namespace Assets.Scripts
     public void OnRandomizeClick()
     {
       ResetMapIfNeeded();
-      map.Randomize();
-      map.Prepare();
+      Map.Randomize();
+      Map.HideUnreachableVertices(TimeRestriction);
     }
     public void InitMapFromJson(MapWrapper mapWrapper)
     {
       ResetMapIfNeeded();
-      map.InitFromJson(mapWrapper);
-      map.Prepare();
+      Map.InitFromJson(mapWrapper);
+      Map.HideUnreachableVertices(TimeRestriction);
     }
 
     private void ResetMapIfNeeded()
@@ -243,10 +252,10 @@ namespace Assets.Scripts
       }
       SetBestPath(new GraphPath());
       ThreadsСount = 0;
-      map.ResetVertices();
+      Map.ResetVertices();
       StartTimer();
       // запустить рекурсионный поиск из каждой вершины смежной со стартовой
-      var currentVertex = map.StartVertex;
+      var currentVertex = Map.StartVertex;
       var startPath = new GraphPath().Add(currentVertex);
       if (paralleling)
       {
@@ -267,7 +276,7 @@ namespace Assets.Scripts
     {
       //если перейдя в вершину мы превысим лимит по времени, то в эту вершину мы не пойдем 
       // если мы идем в вершину в которой замыкается цикл - идти туда не надо
-      return nextV.DistanceFromStart + path.Time + nextV.GetConnectingEdge(currV).Weight > timeRestriction || path.CheckVForCycle(nextV);
+      return nextV.DistanceFromStart + path.Time + nextV.GetConnectingEdge(currV).Weight > TimeRestriction || path.CheckVForCycle(nextV);
     }
 
     private bool CheckBranchForRedundancy(VertexController currentVertex, int currentPathInterest, int currentPathTime)
@@ -376,7 +385,7 @@ namespace Assets.Scripts
           return;
         }
 
-        if (nextV.DistanceFromStart + path.Time + currentVertex.GetConnectingEdge(nextV).Weight <= timeRestriction)
+        if (nextV.DistanceFromStart + path.Time + currentVertex.GetConnectingEdge(nextV).Weight <= TimeRestriction)
         {
           StartThreadFromPool(ParallelBackPath, nextV, new GraphPath(path).Add(nextV));
         }
@@ -448,7 +457,7 @@ namespace Assets.Scripts
       //по каждой смежной вершине в которой (расстояние из нее + время ребра до нее + текущее время пути  <= ограничения
       foreach (var nextV in currentVertex.GetAdjacentVertices().Where(nextV => !path.CheckVForCycle(nextV)))
       {
-        if (nextV.DistanceFromStart + path.Time + currentVertex.GetConnectingEdge(nextV).Weight <= timeRestriction)
+        if (nextV.DistanceFromStart + path.Time + currentVertex.GetConnectingEdge(nextV).Weight <= TimeRestriction)
         {
           BackPath(nextV, new GraphPath(path).Add(nextV));
         }

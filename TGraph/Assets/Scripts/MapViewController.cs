@@ -1,6 +1,4 @@
-﻿
-
-namespace Assets.Scripts
+﻿namespace Assets.Scripts
 {
 #if UNITY_EDITOR
   using UnityEditor;
@@ -20,16 +18,18 @@ namespace Assets.Scripts
     private Text pathInterestText;
     private Text pathTimeText;
     private Text timerText;
+    private InputField SpawnRateIF;
+    private InputField TRestrictionIF;
 
     private MapContent content;
-
-    public int TimeRestriction;
-    public float SpawnRate;
 
     // Use this for initialization
     private void Start()
     {
-      content = new MapContent(SpawnRate, TimeRestriction);
+      int restriction = int.Parse(GameObject.Find("TRestrictionInput").GetComponent<InputField>().text);
+      var sprif = GameObject.Find("SpawnRateInput").GetComponent<InputField>();
+      float spawnRate = float.Parse(sprif.text);
+      content = new MapContent(spawnRate, restriction);
       Init();
     }
     private void Update()
@@ -37,6 +37,45 @@ namespace Assets.Scripts
       timerText.text = content.SwCurrentTime;
       content.PrintBestPathIfNeeded();
     }
+
+    public void OnTimeRestrictionChanged(string value)
+    {
+      if (content == null)
+      {
+        return;
+      }
+      int restriction;
+      if (!int.TryParse(value, out restriction))
+      {
+        return;
+      }
+      if (content.TimeRestriction != restriction)
+      {
+        content.TimeRestriction = restriction;
+        if (!content.Map.IsEmpty())
+        {
+          findBtn.interactable = true;
+        }
+      }
+    }
+
+    private void OnSpawnRateChanged(string value)
+    {
+      if (content?.Map == null)
+      {
+        return;
+      }
+      float spawnRate;
+      if (!float.TryParse(value, out spawnRate))
+      {
+        return;
+      }
+      if (Mathf.Abs(content.Map.SpawnRate - spawnRate) > 0.001)
+      {
+        content.Map.SpawnRate = spawnRate;
+      }
+    }
+
     /// <summary>
     /// called once upon application start
     /// </summary>
@@ -51,7 +90,11 @@ namespace Assets.Scripts
       timerText = GameObject.Find("TimerText").GetComponent<Text>();
       pathInterestText = GameObject.Find("PathInterest").GetComponent<Text>();
       parallelToggle = GameObject.Find("ParallelToggle").GetComponent<Toggle>();
+      SpawnRateIF = GameObject.Find("SpawnRateInput").GetComponent<InputField>();
+      TRestrictionIF = GameObject.Find("TRestrictionInput").GetComponent<InputField>();
 
+      SpawnRateIF.onValueChanged.AddListener(OnSpawnRateChanged);
+      TRestrictionIF.onValueChanged.AddListener(OnTimeRestrictionChanged);
       parallelToggle.onValueChanged.AddListener(OnParallelToggle);
       findBtn.onClick.AddListener(OnFindBtnClick);
       randomizeBtn.onClick.AddListener(OnRandomizeButtonClick);

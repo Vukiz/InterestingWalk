@@ -81,6 +81,16 @@ namespace Assets.Scripts
     {
       RandomizeVertices();
       RandomizeEdges();
+      Prepare();
+    }
+
+    public void InitFromJson(MapWrapper mapWrapper)
+    {
+      SpawnRate = mapWrapper.SpawnRate;
+      Clear();
+      InitVertices(mapWrapper.Vertices);
+      InitEdges(mapWrapper.Edges);
+      Prepare();
     }
 
     public void Prepare()
@@ -273,15 +283,6 @@ namespace Assets.Scripts
       }
     }
 
-    public void InitFromJson(MapWrapper mapWrapper)
-    {
-      SpawnRate = mapWrapper.SpawnRate;
-      Clear();
-      InitVertices(mapWrapper.Vertices);
-      InitEdges(mapWrapper.Edges);
-      Prepare();
-    }
-
     private void InitEdges(IEnumerable<_Edge> mapWrapperEdges)
     {
       foreach (var edgeStruct in mapWrapperEdges)
@@ -303,6 +304,25 @@ namespace Assets.Scripts
     private void CreateVertex(_Vertex vertexStruct)
     {
       CreateVertex(new Vector2(vertexStruct.x, vertexStruct.y), vertexStruct.Interest, vertexStruct.Name, vertexStruct.ChildText);
+    }
+
+    public void HideUnreachableVertices(int restriction)
+    {
+      if (Vertices.All(v => v.DistanceFromStart == 0))//map should be prepared before hiding inaccessible vertices
+      {
+        return;
+      }
+      foreach (VertexController vertex in Vertices)
+      {
+        if (vertex.DistanceFromStart * 2 > restriction)
+        {
+          vertex.GetComponent<SpriteRenderer>().color = Color.black;
+        }
+        else
+        {
+          vertex.GetComponent<SpriteRenderer>().color = Color.white;
+        }
+      }
     }
   }
 }
