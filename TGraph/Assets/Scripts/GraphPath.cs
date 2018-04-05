@@ -18,14 +18,11 @@ namespace Assets.Scripts
     private readonly List<EdgeController> edges;
     private readonly List<int> edgesCount;
 
-    public int Time
-    {
-      get { return time; }
-    }
-    public int Interest
-    {
-      get { return interest; }
-    }
+    public int Time => time;
+    public int Interest => interest;
+
+    public VertexController CurrentVertex => vertices.Last();
+
     public GraphPath()
     {
       vertices = new List<VertexController>();
@@ -98,7 +95,11 @@ namespace Assets.Scripts
     { 
       return vertices.Aggregate("", (current, v) => current + (" " + v.name));
     }
-
+    /// <summary>
+    /// проверяем не получится ли после добавления новой вершины в путь так, что мы в нее зашли вышли и пытаемся зайти в нее тем же путем что и раньше ( то есть по одному ребру три раза)
+    /// </summary>
+    /// <param name="nextV"></param>
+    /// <returns></returns>
     public bool CheckVForCycle(VertexController nextV)
     {
       if (vertices.Count < 3)

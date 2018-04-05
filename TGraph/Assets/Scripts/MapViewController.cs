@@ -66,9 +66,18 @@
         return;
       }
       float spawnRate;
+      value = value.Replace(".", ",");
       if (!float.TryParse(value, out spawnRate))
       {
         return;
+      }
+      if (spawnRate > 1)
+      {
+        spawnRate = 1;
+      }
+      if (spawnRate < 0)
+      {
+        spawnRate = 0;
       }
       if (Mathf.Abs(content.Map.SpawnRate - spawnRate) > 0.001)
       {
@@ -114,7 +123,7 @@
     private void OnLoadButtonClick()
     {
 #if UNITY_EDITOR
-      var path = EditorUtility.OpenFilePanel("Choose graph to load", "", "*.*");
+      var path = EditorUtility.OpenFilePanel("Choose graph to load", "", "");
       GraphExporter.LoadGraph(content, path);
       findBtn.interactable = true;
 #endif

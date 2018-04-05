@@ -1,0 +1,86 @@
+{
+  "SpawnRate": 0.8999999761581421,
+  "Vertices": [
+    {
+      "Interest": 0,
+      "Name": "Start",
+      "ChildText": "S",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "Interest": 8,
+      "Name": "1",
+      "ChildText": "8",
+      "x": 3.0,
+      "y": 1.0
+    },
+    {
+      "Interest": 6,
+      "Name": "2",
+      "ChildText": "6",
+      "x": 3.0,
+      "y": 11.0
+    },
+    {
+      "Interest": 7,
+      "Name": "3",
+      "ChildText": "7",
+      "x": 7.0,
+      "y": 13.0
+    },
+    {
+      "Interest": 4,
+      "Name": "4",
+      "ChildText": "4",
+      "x": 9.0,
+      "y": 19.0
+    },
+    {
+      "Interest": 3,
+      "Name": "6",
+      "ChildText": "3",
+      "x": 15.0,
+      "y": 15.0
+    },
+    {
+      "Interest": 5,
+      "Name": "8",
+      "ChildText": "5",
+      "x": 19.0,
+      "y": 5.0
+    }
+  ],
+  "Edges": [
+    {
+      "Weight": 1,
+      "FirstVertexName": "Start",
+      "SecondVertexName": "1"
+    },
+    {
+      "Weight": 5,
+      "FirstVertexName": "1",
+      "SecondVertexName": "8"
+    },
+    {
+      "Weight": 5,
+      "FirstVertexName": "1",
+      "SecondVertexName": "2"
+    },
+    {
+      "Weight": 5,
+      "FirstVertexName": "1",
+      "SecondVertexName": "3"
+    },
+    {
+      "Weight": 6,
+      "FirstVertexName": "Start",
+      "SecondVertexName": "4"
+    },
+    {
+      "Weight": 1,
+      "FirstVertexName": "8",
+      "SecondVertexName": "6"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "SpawnRate": 0.949999988079071,
+  "Vertices": [
+    {
+      "Interest": 0,
+      "Name": "Start",
+      "ChildText": "S",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "Interest": 5,
+      "Name": "1",
+      "ChildText": "5",
+      "x": 5.0,
+      "y": 5.0
+    },
+    {
+      "Interest": 5,
+      "Name": "2",
+      "ChildText": "5",
+      "x": 5.0,
+      "y": 0.0
+    },
+    {
+      "Interest": 1,
+      "Name": "3",
+      "ChildText": "1",
+      "x": 8.0,
+      "y": 8.0
+    },
+    {
+      "Interest": 1,
+      "Name": "4",
+      "ChildText": "1",
+      "x": 8.0,
+      "y": 0.0
+    }
+  ],
+  "Edges": [
+    {
+      "Weight": 1,
+      "FirstVertexName": "Start",
+      "SecondVertexName": "2"
+    },
+    {
+      "Weight": 1,
+      "FirstVertexName": "Start",
+      "SecondVertexName": "1"
+    },
+    {
+      "Weight": 1,
+      "FirstVertexName": "1",
+      "SecondVertexName": "3"
+    },
+    {
+      "Weight": 1,
+      "FirstVertexName": "2",
+      "SecondVertexName": "4"
+    }
+  ]
+}

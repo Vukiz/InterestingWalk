@@ -14,7 +14,15 @@ namespace Assets.Scripts
     }
     public static MapWrapper FromJson(string json)
     {
-      MapWrapper mapWrapper = JsonUtility.FromJson<MapWrapper>(json);
+      MapWrapper mapWrapper = null;
+      try
+      {
+        mapWrapper = JsonUtility.FromJson<MapWrapper>(json);
+      }
+      catch (Exception e)
+      {
+        Debug.Log(e.Message);
+      }
       return mapWrapper;
     }
     public static void LoadGraph(MapContent mapContent, string loadPath)
@@ -33,7 +41,7 @@ namespace Assets.Scripts
           mapToSave.Vertices.Select(v => v.Vertex).ToArray(),
           mapToSave.Edges.Select(e => e.Edge).ToArray()
         );
-        File.WriteAllText("Map" + Time.time , json);
+        File.WriteAllText("Map" + DateTime.Now.ToString().Replace(" ","").Replace(":",".") , json);
       }
       catch(Exception exception)
       {

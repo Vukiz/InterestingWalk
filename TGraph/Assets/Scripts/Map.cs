@@ -237,10 +237,6 @@ namespace Assets.Scripts
 
     private void SpreadMeasure()
     {
-      foreach (var vertex in Vertices)
-      {
-        vertex.CurrentState = VertexState.Unvisited;
-      }
       int maxDepth = Vertices.Max(v => v.Depth);
 
       for (var i = 0; i <= maxDepth; i++) //вверх по глубине
@@ -248,7 +244,7 @@ namespace Assets.Scripts
         foreach (var currentVertex in Vertices.Where(v => v.Depth == i)) // по каждой вершине с текущей глубиной распространяем наилучшую меру
         {
           foreach (var equalVertex in currentVertex.GetAdjacentVertices()// проверяем не будет ли лучшей меры от смежных вершин не глубже текущей 
-            .Where(vertex => vertex.Depth == currentVertex.Depth))
+            .Where(vertex => vertex.Depth == i))
           {
             float currentMeasure;
             var edgeBetweenVertices = currentVertex.GetConnectingEdge(equalVertex);
@@ -270,7 +266,7 @@ namespace Assets.Scripts
             }
           }
           foreach (var deeperVertex in currentVertex.GetAdjacentVertices()// проталкиваем меру из текущей вершины вниз по глубине
-            .Where(vertex => vertex.Depth > currentVertex.Depth))
+            .Where(vertex => vertex.Depth > i))
           {
             var edgeToDeeperVertex = currentVertex.GetConnectingEdge(deeperVertex);
             var measureFromCurrentVertex = HeuristicMeasure(deeperVertex.Interest, edgeToDeeperVertex.Weight) + currentVertex.BestMeasure;
